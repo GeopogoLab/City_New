@@ -191,6 +191,12 @@ body {
   line-height: 1.4;
 }
 
+.hint-text {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  text-transform: none;
+}
+
 /* Buttons */
 .toggle-btn,
 .provider-btn {
@@ -243,6 +249,38 @@ body {
 
 .provider-btn.error .provider-status {
   color: #dc3545;
+}
+
+.position-inputs {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.position-inputs label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+.position-inputs input[type="number"] {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.position-inputs input[type="number"]:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+  background: var(--bg-primary);
+  box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.1);
 }
 
 /* Slider */

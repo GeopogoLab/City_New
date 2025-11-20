@@ -12,6 +12,15 @@ const PHOTOREALISTIC_LAYER_ID = "google-3d-tiles";
 const MODEL_LAYER_ID = "uploaded-model";
 type CameraMode = "orbit" | "free";
 
+type DeckClickInfo = {
+  coordinate?: [number, number] | null;
+};
+
+type MapClickPosition = {
+  latitude: number;
+  longitude: number;
+};
+
 type ControllerConfig = {
   doubleClickZoom: boolean;
   dragMode: "pan" | "rotate";
@@ -24,6 +33,7 @@ type DeckSceneCallbacks = {
   onTilesetLoad?: (tileset: Tileset3D) => void;
   onTileLoad?: (tile: unknown) => void;
   onTileError?: (error: unknown) => void;
+  onMapClick?: (position: MapClickPosition) => void;
 };
 
 type DeckSceneOptions = {
@@ -79,6 +89,9 @@ export class DeckScene {
       viewState: this.viewState,
       onViewStateChange: ({ viewState }) => {
         this.setViewState(viewState as Partial<CameraViewState>);
+      },
+      onClick: (info) => {
+        this.handleMapClick(info as DeckClickInfo);
       },
       layers: [],
       effects: [this.lightingEffect],
@@ -180,6 +193,12 @@ export class DeckScene {
 
   getCurrentViewState(): CameraViewState {
     return this.viewState;
+  }
+
+  private handleMapClick(info: DeckClickInfo) {
+    if (!info.coordinate) return;
+    const [longitude, latitude] = info.coordinate;
+    this.callbacks.onMapClick?.({ latitude, longitude });
   }
 }
 

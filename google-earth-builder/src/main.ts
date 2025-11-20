@@ -1,5 +1,6 @@
 import "./style.css";
-import { GLTFLoader, type GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import type { Group } from "three";
 import { normalizeModel, isValidModelFile, formatAltitude } from "./utils";
 import { DeckScene, type CameraMode } from "./deckScene";
@@ -17,6 +18,9 @@ const searchInput = document.querySelector<HTMLInputElement>("#searchInput")!;
 const labelsToggle = document.querySelector<HTMLButtonElement>("#labelsToggle")!;
 const providerButton = document.querySelector<HTMLButtonElement>("#providerButton")!;
 const providerStatus = document.querySelector<HTMLSpanElement>("#providerStatus")!;
+const positionLatInput = document.querySelector<HTMLInputElement>("#positionLat")!;
+const positionLngInput = document.querySelector<HTMLInputElement>("#positionLng")!;
+const centerToCameraButton = document.querySelector<HTMLButtonElement>("#centerToCamera")!;
 
 const scaleSlider = document.querySelector<HTMLInputElement>("#scale")!;
 const scaleValue = document.querySelector<HTMLSpanElement>("#scaleValue")!;
@@ -39,6 +43,9 @@ const clampValue = (value: string | number | null): number => {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : VIEW_DISTANCE_RANGE.default;
 };
+
+const clampLatitude = (value: number) => Math.max(-90, Math.min(90, value));
+const clampLongitude = (value: number) => Math.max(-180, Math.min(180, value));
 
 const updateViewDistanceDisplay = (zoom: number) => {
   const clamped = clampZoom(zoom);
@@ -75,6 +82,7 @@ const initialViewState = createInitialViewState(initialZoom);
 let currentViewState = initialViewState;
 
 const gltfLoader = new GLTFLoader();
+const objLoader = new OBJLoader();
 const modelState = createModelState();
 let activeMode: "translate" | "rotate" | "scale" = "translate";
 
@@ -94,6 +102,9 @@ const deckScene = new DeckScene({
     onTileError: (error) => {
       console.error("Tile error:", error);
       setStatus("Failed to load Google photorealistic tiles. Verify API quota.");
+    },
+    onMapClick: ({ latitude, longitude }) => {
+      handleMapPlacement(latitude, longitude);
     },
   },
 });
@@ -130,9 +141,44 @@ const syncAltitudeControls = () => {
   altitudeValue.textContent = formatAltitude(modelState.position.altitude);
 };
 
+const syncPositionInputs = () => {
+  positionLatInput.value = modelState.position.lat.toFixed(6);
+  positionLngInput.value = modelState.position.lng.toFixed(6);
+};
+
+const updateModelPosition = (lat: number, lng: number) => {
+  modelState.position.lat = clampLatitude(lat);
+  modelState.position.lng = clampLongitude(lng);
+  syncPositionInputs();
+  updateModelLayer();
+};
+
+const parseCoordinateInput = (value: string, fallback: number) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const commitPositionInputs = () => {
+  if (!modelState.group) {
+    setStatus("Load a model before adjusting position.");
+    return;
+  }
+  const lat = clampLatitude(parseCoordinateInput(positionLatInput.value, modelState.position.lat));
+  const lng = clampLongitude(parseCoordinateInput(positionLngInput.value, modelState.position.lng));
+  updateModelPosition(lat, lng);
+  setStatus("Model coordinates updated.");
+};
+
 const setMode = (mode: typeof activeMode) => {
   activeMode = mode;
   modeButtons.forEach((btn) => btn.classList.toggle("active", btn.dataset.mode === mode));
+  if (mode === "translate") {
+    setStatus("Move mode: click on the map to reposition the model.");
+  } else if (mode === "rotate") {
+    setStatus("Rotate mode: use the heading and pitch sliders.");
+  } else {
+    setStatus("Scale mode: drag the scale slider to resize the model.");
+  }
 };
 
 let cameraMode: CameraMode = "orbit";
@@ -161,6 +207,33 @@ const updateProviderStatus = () => {
   providerButton.classList.remove("error");
   providerStatus.textContent = "READY";
   providerButton.title = "Google photorealistic tiles enabled.";
+};
+
+type SupportedModelFormat = "gltf" | "glb" | "obj";
+
+const detectModelFormat = (filename: string): SupportedModelFormat | null => {
+  const match = filename.toLowerCase().match(/\.([a-z0-9]+)$/);
+  if (!match) return null;
+  const ext = match[1];
+  if (ext === "gltf" || ext === "glb" || ext === "obj") return ext;
+  return null;
+};
+
+const loadModelFromFile = async (file: File): Promise<Group> => {
+  const format = detectModelFormat(file.name);
+  if (!format) {
+    throw new Error("Unsupported format");
+  }
+  const url = URL.createObjectURL(file);
+  try {
+    if (format === "obj") {
+      return await objLoader.loadAsync(url);
+    }
+    const gltf = await gltfLoader.loadAsync(url);
+    return gltf.scene;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 };
 
 toggleModelControls(false);
@@ -210,6 +283,19 @@ const dropModelToTerrain = async () => {
   }
 };
 
+const handleMapPlacement = (latitude: number, longitude: number) => {
+  if (!modelState.group) {
+    setStatus("Load a model before placing it on the map.");
+    return;
+  }
+  if (activeMode !== "translate") {
+    setStatus("Switch to Move mode to reposition the model.");
+    return;
+  }
+  updateModelPosition(latitude, longitude);
+  setStatus("Model moved to selected map location.");
+};
+
 const placeModel = (model: Group) => {
   modelState.group = model;
   normalizeModel(model);
@@ -226,6 +312,7 @@ const placeModel = (model: Group) => {
   toggleModelControls(true);
   resetTransformControls();
   syncAltitudeControls();
+  syncPositionInputs();
   setMode("translate");
 
   updateModelLayer();
@@ -278,21 +365,20 @@ const handleSearch = async () => {
 };
 
 const handleFileUpload = (file: File) => {
-  const url = URL.createObjectURL(file);
-  setStatus("Loading model...");
-  gltfLoader.load(
-    url,
-    (gltf: GLTF) => {
-      URL.revokeObjectURL(url);
-      placeModel(gltf.scene);
-    },
-    undefined,
-    (error: unknown) => {
+  const format = detectModelFormat(file.name);
+  if (!format) {
+    setStatus("Only .gltf, .glb or .obj files are supported.");
+    return;
+  }
+  setStatus(`Loading ${format.toUpperCase()} model...`);
+  loadModelFromFile(file)
+    .then((group) => {
+      placeModel(group);
+    })
+    .catch((error) => {
       console.error(error);
-      URL.revokeObjectURL(url);
       setStatus("Model failed to load. Check console for details.");
-    }
-  );
+    });
 };
 
 const bootScene = () => {
@@ -341,9 +427,35 @@ altitudeSlider.addEventListener("input", () => {
   updateModelLayer();
 });
 
+positionLatInput.addEventListener("change", () => {
+  commitPositionInputs();
+});
+
+positionLngInput.addEventListener("change", () => {
+  commitPositionInputs();
+});
+
+[positionLatInput, positionLngInput].forEach((input) => {
+  input.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    commitPositionInputs();
+  });
+});
+
 dropToGroundButton.addEventListener("click", (event) => {
   event.preventDefault();
   void dropModelToTerrain();
+});
+
+centerToCameraButton.addEventListener("click", (event) => {
+  event.preventDefault();
+  if (!modelState.group) {
+    setStatus("Load a model before aligning to camera.");
+    return;
+  }
+  updateModelPosition(currentViewState.latitude, currentViewState.longitude);
+  setStatus("Model centered on current camera view.");
 });
 
 modeButtons.forEach((btn) =>
@@ -370,7 +482,7 @@ fileInput.addEventListener("change", () => {
   const file = fileInput.files?.[0];
   if (!file) return;
   if (!isValidModelFile(file.name)) {
-    setStatus("Only .gltf or .glb files are supported.");
+    setStatus("Only .gltf, .glb or .obj files are supported.");
     return;
   }
   handleFileUpload(file);
@@ -393,7 +505,7 @@ uploadZone.addEventListener("drop", (event) => {
   if (!files?.length) return;
   const file = files[0];
   if (!isValidModelFile(file.name)) {
-    setStatus("Only .gltf or .glb files are supported.");
+    setStatus("Only .gltf, .glb or .obj files are supported.");
     return;
   }
   handleFileUpload(file);

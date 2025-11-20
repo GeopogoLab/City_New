@@ -21,7 +21,7 @@ export const normalizeModel = (model: Group, targetSize: number = MODEL_BASE_SIZ
  * @returns true if the file has .gltf or .glb extension
  */
 export const isValidModelFile = (filename: string): boolean => {
-  return /\.(gltf|glb)$/i.test(filename);
+  return /\.(gltf|glb|obj)$/i.test(filename);
 };
 
 /**

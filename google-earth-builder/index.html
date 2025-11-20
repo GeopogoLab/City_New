@@ -82,7 +82,7 @@
                   <polyline points="17 8 12 3 7 8"></polyline>
                   <line x1="12" y1="3" x2="12" y2="15"></line>
                 </svg>
-                <p>Drop GLB/GLTF file here</p>
+                <p>Drop GLB / GLTF / OBJ file here</p>
                 <span class="sub-text">or click to browse</span>
               </label>
             </section>
@@ -120,16 +120,36 @@
                 <input type="range" id="pitch" min="-90" max="90" value="0" step="1" />
               </div>
 
-          <div class="control-group">
-            <label>
-              <span>ALTITUDE</span>
-              <span class="value" id="altitudeValue">0m</span>
-            </label>
-            <input type="range" id="altitude" min="-50" max="500" value="0" step="1" />
-            <div class="control-actions">
-              <button class="ghost-btn" id="dropToGround">Drop to Terrain</button>
-            </div>
-          </div>
+              <div class="control-group">
+                <label>
+                  <span>ALTITUDE</span>
+                  <span class="value" id="altitudeValue">0m</span>
+                </label>
+                <input type="range" id="altitude" min="-50" max="500" value="0" step="1" />
+                <div class="control-actions">
+                  <button class="ghost-btn" id="dropToGround">Drop to Terrain</button>
+                </div>
+              </div>
+
+              <div class="control-group">
+                <label>
+                  <span>POSITION</span>
+                  <span class="value hint-text">Use “Move” + map click</span>
+                </label>
+                <div class="position-inputs">
+                  <label>
+                    <span>Lat</span>
+                    <input type="number" id="positionLat" step="0.000001" min="-90" max="90" />
+                  </label>
+                  <label>
+                    <span>Lng</span>
+                    <input type="number" id="positionLng" step="0.000001" min="-180" max="180" />
+                  </label>
+                </div>
+                <div class="control-actions">
+                  <button class="ghost-btn" id="centerToCamera">Use Camera Center</button>
+                </div>
+              </div>
 
               <div class="section">
                 <h4>TRANSFORM MODE</h4>

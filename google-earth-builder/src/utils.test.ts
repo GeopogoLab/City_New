@@ -59,6 +59,11 @@ describe("isValidModelFile", () => {
     expect(isValidModelFile("MODEL.GLB")).toBe(true);
   });
 
+  it("should return true for .obj files", () => {
+    expect(isValidModelFile("building.obj")).toBe(true);
+    expect(isValidModelFile("MODEL.OBJ")).toBe(true);
+  });
+
   it("should return true for .gltf files", () => {
     expect(isValidModelFile("model.gltf")).toBe(true);
     expect(isValidModelFile("path/to/model.gltf")).toBe(true);
@@ -66,7 +71,6 @@ describe("isValidModelFile", () => {
   });
 
   it("should return false for other file types", () => {
-    expect(isValidModelFile("model.obj")).toBe(false);
     expect(isValidModelFile("model.fbx")).toBe(false);
     expect(isValidModelFile("model.txt")).toBe(false);
     expect(isValidModelFile("model")).toBe(false);

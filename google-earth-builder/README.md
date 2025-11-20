@@ -42,6 +42,8 @@ A lightweight Vite + TypeScript experience for streaming Google Photorealistic 3
 - Camera mode toggle flips between orbit and free rotate modes without reloading the scene
 - Status-aware provider button and label toggle expose API-key health plus quick coordinate overlays
 - Terrain snapping uses the Elevation API to ground uploaded models with a single click
+- OBJ, GLB, and GLTF files all flow through the same normalization pipeline—drag-and-drop or browse uploads Just Work™
+- Translation workflow: choose “Move” mode then click anywhere on the photorealistic map or edit the precise latitude/longitude inputs to reposition the uploaded model; rotation, pitch, scale, and altitude remain live-updated via sliders
 
 ## Testing
 
