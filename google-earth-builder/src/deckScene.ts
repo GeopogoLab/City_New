@@ -34,6 +34,7 @@ type DeckSceneCallbacks = {
   onTileLoad?: (tile: unknown) => void;
   onTileError?: (error: unknown) => void;
   onMapClick?: (position: MapClickPosition) => void;
+  onModelError?: (error: unknown) => void;
 };
 
 type DeckSceneOptions = {
@@ -49,6 +50,7 @@ export class DeckScene {
   private viewState: CameraViewState;
   private photorealisticLayer: Tile3DLayer | null = null;
   private modelLayer: ScenegraphLayer | null = null;
+  private ownedScenegraphUrl: string | null = null;
   private readonly callbacks: DeckSceneCallbacks;
   private readonly shouldAutoCenter: boolean;
   private readonly lightingEffect: LightingEffect;
@@ -86,7 +88,6 @@ export class DeckScene {
       canvas,
       controller: this.controllerConfig,
       initialViewState: this.viewState,
-      viewState: this.viewState,
       onViewStateChange: ({ viewState }) => {
         this.setViewState(viewState as Partial<CameraViewState>);
       },
@@ -163,15 +164,28 @@ export class DeckScene {
 
   updateModel(modelState: ModelState | null) {
     if (!modelState?.scenegraphSource) {
+      if (this.ownedScenegraphUrl) {
+        URL.revokeObjectURL(this.ownedScenegraphUrl);
+        this.ownedScenegraphUrl = null;
+      }
       this.modelLayer = null;
       this.syncLayers();
       return;
+    }
+
+    if (this.ownedScenegraphUrl) {
+      URL.revokeObjectURL(this.ownedScenegraphUrl);
+      this.ownedScenegraphUrl = null;
     }
 
     const scenegraph =
       modelState.scenegraphSource instanceof Blob || modelState.scenegraphSource instanceof File
         ? URL.createObjectURL(modelState.scenegraphSource)
         : modelState.scenegraphSource;
+
+    if (scenegraph.startsWith("blob:")) {
+      this.ownedScenegraphUrl = scenegraph;
+    }
 
     this.modelLayer = new ScenegraphLayer({
       id: MODEL_LAYER_ID,
@@ -191,6 +205,7 @@ export class DeckScene {
       getOrientation: (d) => d.orientation,
       _animations: { "*": { speed: 0 } },
       pickable: true,
+      onError: (error) => this.callbacks.onModelError?.(error),
     });
 
     this.syncLayers();

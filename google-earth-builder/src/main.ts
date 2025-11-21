@@ -146,6 +146,10 @@ const deckScene = new DeckScene({
     onMapClick: ({ latitude, longitude }) => {
       handleMapPlacement(latitude, longitude);
     },
+    onModelError: (error) => {
+      console.error("Scenegraph load error:", error);
+      setStatus("Model failed to render. See console for details.");
+    },
   },
 });
 
@@ -280,6 +284,7 @@ const detectModelFormat = (filename: string): SupportedModelFormat | null => {
 const loadModelFromFile = async (file: File, format: SupportedModelFormat): Promise<Group> => {
   const url = URL.createObjectURL(file);
   try {
+    console.debug("Loading model file", { name: file.name, size: file.size, format });
     if (format === "obj") {
       return await objLoader.loadAsync(url);
     }
@@ -396,6 +401,7 @@ const handleMapPlacement = (latitude: number, longitude: number) => {
 };
 
 const placeModel = async (model: Group, format: SupportedModelFormat) => {
+  console.debug("Placing model", { format });
   normalizeModel(model);
   modelState.baseScale = model.scale.x;
   modelState.transform.scale = modelState.baseScale;
@@ -475,7 +481,7 @@ const handleFileUpload = (file: File) => {
   loadModelFromFile(file, format)
     .then((group) => placeModel(group, format))
     .catch((error) => {
-      console.error(error);
+      console.error("Model load failed:", error);
       setStatus("Model failed to load. Check console for details.");
     });
 };
