@@ -1,5 +1,6 @@
 import "./style.css";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import type { Group } from "three";
 import { normalizeModel, isValidModelFile, formatAltitude } from "./utils";
@@ -47,6 +48,34 @@ const clampValue = (value: string | number | null): number => {
 const clampLatitude = (value: number) => Math.max(-90, Math.min(90, value));
 const clampLongitude = (value: number) => Math.max(-180, Math.min(180, value));
 
+const exportGroupToGlbBlob = (group: Group): Promise<Blob> =>
+  new Promise((resolve, reject) => {
+    gltfExporter.parse(
+      group,
+      (result) => {
+        if (result instanceof ArrayBuffer) {
+          resolve(new Blob([result], { type: "model/gltf-binary" }));
+        } else if (ArrayBuffer.isView(result)) {
+          const view = new Uint8Array(result.buffer, result.byteOffset, result.byteLength);
+          const copy = new Uint8Array(view);
+          resolve(new Blob([copy.buffer], { type: "model/gltf-binary" }));
+        } else if (typeof result === "string") {
+          resolve(new Blob([result], { type: "application/json" }));
+        } else {
+          resolve(new Blob([JSON.stringify(result)], { type: "application/json" }));
+        }
+      },
+      (error) => reject(error),
+      { binary: true }
+    );
+  });
+
+const createScenegraphUrl = async (group: Group): Promise<string> => {
+  group.updateMatrixWorld(true);
+  const blob = await exportGroupToGlbBlob(group);
+  return URL.createObjectURL(blob);
+};
+
 const updateViewDistanceDisplay = (zoom: number) => {
   const clamped = clampZoom(zoom);
   viewDistanceValue.textContent = clamped.toFixed(0);
@@ -83,8 +112,23 @@ let currentViewState = initialViewState;
 
 const gltfLoader = new GLTFLoader();
 const objLoader = new OBJLoader();
+const gltfExporter = new GLTFExporter();
 const modelState = createModelState();
 let activeMode: "translate" | "rotate" | "scale" = "translate";
+
+const clearScenegraphUrl = () => {
+  if (modelState.scenegraphUrl) {
+    URL.revokeObjectURL(modelState.scenegraphUrl);
+    modelState.scenegraphUrl = null;
+  }
+};
+
+const setScenegraphUrl = (url: string) => {
+  clearScenegraphUrl();
+  modelState.scenegraphUrl = url;
+};
+
+const hasActiveModel = () => Boolean(modelState.scenegraphUrl);
 
 const deckScene = new DeckScene({
   canvas: ensureDeckCanvas(mapDiv),
@@ -122,7 +166,7 @@ const toggleModelControls = (visible: boolean) => {
 };
 
 const updateModelLayer = () => {
-  deckScene.updateModel(modelState.group ? modelState : null);
+  deckScene.updateModel(hasActiveModel() ? modelState : null);
 };
 
 const resetTransformControls = () => {
@@ -159,7 +203,7 @@ const parseCoordinateInput = (value: string, fallback: number) => {
 };
 
 const commitPositionInputs = () => {
-  if (!modelState.group) {
+  if (!hasActiveModel()) {
     setStatus("Load a model before adjusting position.");
     return;
   }
@@ -219,11 +263,7 @@ const detectModelFormat = (filename: string): SupportedModelFormat | null => {
   return null;
 };
 
-const loadModelFromFile = async (file: File): Promise<Group> => {
-  const format = detectModelFormat(file.name);
-  if (!format) {
-    throw new Error("Unsupported format");
-  }
+const loadModelFromFile = async (file: File, format: SupportedModelFormat): Promise<Group> => {
   const url = URL.createObjectURL(file);
   try {
     if (format === "obj") {
@@ -262,7 +302,7 @@ const fetchGroundAltitude = async (lat: number, lng: number): Promise<number | n
 };
 
 const dropModelToTerrain = async () => {
-  if (!modelState.group) return;
+  if (!hasActiveModel()) return;
   dropToGroundButton.disabled = true;
   const previousLabel = dropToGroundButton.textContent;
   dropToGroundButton.textContent = "Snapping...";
@@ -284,7 +324,7 @@ const dropModelToTerrain = async () => {
 };
 
 const handleMapPlacement = (latitude: number, longitude: number) => {
-  if (!modelState.group) {
+  if (!hasActiveModel()) {
     setStatus("Load a model before placing it on the map.");
     return;
   }
@@ -296,8 +336,7 @@ const handleMapPlacement = (latitude: number, longitude: number) => {
   setStatus("Model moved to selected map location.");
 };
 
-const placeModel = (model: Group) => {
-  modelState.group = model;
+const placeModel = async (model: Group, format: SupportedModelFormat) => {
   normalizeModel(model);
   modelState.baseScale = model.scale.x;
   modelState.transform.scale = modelState.baseScale;
@@ -309,6 +348,9 @@ const placeModel = (model: Group) => {
     altitude: 0,
   };
 
+  const scenegraphUrl = await createScenegraphUrl(model);
+  setScenegraphUrl(scenegraphUrl);
+
   toggleModelControls(true);
   resetTransformControls();
   syncAltitudeControls();
@@ -316,7 +358,7 @@ const placeModel = (model: Group) => {
   setMode("translate");
 
   updateModelLayer();
-  setStatus("Model loaded. Dropping to terrain...");
+  setStatus(`${format.toUpperCase()} model loaded. Dropping to terrain...`);
   void dropModelToTerrain();
 };
 
@@ -371,10 +413,8 @@ const handleFileUpload = (file: File) => {
     return;
   }
   setStatus(`Loading ${format.toUpperCase()} model...`);
-  loadModelFromFile(file)
-    .then((group) => {
-      placeModel(group);
-    })
+  loadModelFromFile(file, format)
+    .then((group) => placeModel(group, format))
     .catch((error) => {
       console.error(error);
       setStatus("Model failed to load. Check console for details.");
@@ -397,7 +437,7 @@ viewDistanceSlider.addEventListener("input", () => {
 });
 
 scaleSlider.addEventListener("input", () => {
-  if (!modelState.group) return;
+  if (!hasActiveModel()) return;
   const multiplier = parseFloat(scaleSlider.value);
   modelState.transform.scale = modelState.baseScale * multiplier;
   scaleValue.textContent = `${multiplier.toFixed(1)}x`;
@@ -405,7 +445,7 @@ scaleSlider.addEventListener("input", () => {
 });
 
 rotationSlider.addEventListener("input", () => {
-  if (!modelState.group) return;
+  if (!hasActiveModel()) return;
   const rotation = parseFloat(rotationSlider.value);
   modelState.transform.rotation = rotation;
   rotationValue.textContent = `${Math.round(rotation)}°`;
@@ -413,7 +453,7 @@ rotationSlider.addEventListener("input", () => {
 });
 
 pitchSlider.addEventListener("input", () => {
-  if (!modelState.group) return;
+  if (!hasActiveModel()) return;
   const pitch = parseFloat(pitchSlider.value);
   modelState.transform.pitch = pitch;
   pitchValue.textContent = `${Math.round(pitch)}°`;
@@ -421,7 +461,7 @@ pitchSlider.addEventListener("input", () => {
 });
 
 altitudeSlider.addEventListener("input", () => {
-  if (!modelState.group) return;
+  if (!hasActiveModel()) return;
   modelState.position.altitude = Number(altitudeSlider.value);
   altitudeValue.textContent = formatAltitude(modelState.position.altitude);
   updateModelLayer();
@@ -450,7 +490,7 @@ dropToGroundButton.addEventListener("click", (event) => {
 
 centerToCameraButton.addEventListener("click", (event) => {
   event.preventDefault();
-  if (!modelState.group) {
+  if (!hasActiveModel()) {
     setStatus("Load a model before aligning to camera.");
     return;
   }
@@ -523,6 +563,10 @@ providerButton.addEventListener("click", () => {
     return;
   }
   setStatus("Google photorealistic tiles active.");
+});
+
+window.addEventListener("beforeunload", () => {
+  clearScenegraphUrl();
 });
 
 setStatus("Initializing photorealistic scene...");

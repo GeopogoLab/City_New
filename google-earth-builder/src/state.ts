@@ -1,4 +1,3 @@
-import type { Group } from "three";
 import { CAMERA_DEFAULTS, DEFAULT_LOCATION, VIEW_DISTANCE_RANGE } from "./constants";
 
 export interface CameraViewState {
@@ -24,7 +23,7 @@ export interface ModelPosition {
 }
 
 export interface ModelState {
-  group: Group | null;
+  scenegraphUrl: string | null;
   baseScale: number;
   transform: ModelTransform;
   position: ModelPosition;
@@ -44,7 +43,7 @@ export const createInitialViewState = (zoom: number): CameraViewState => ({
 });
 
 export const createModelState = (): ModelState => ({
-  group: null,
+  scenegraphUrl: null,
   baseScale: 1,
   transform: { scale: 1, rotation: 0, pitch: 0 },
   position: {
