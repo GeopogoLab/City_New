@@ -186,3 +186,4 @@ tailwindcss + shadcn
 - **2025-11-15**：导入的建筑模型必须通过 Deck.gl ScenegraphLayer 渲染，并默认调用 Elevation API 把模型吸附到地形（“Drop to Terrain”按钮是强制交互），灯光效果使用 Ambient+Directional LightingEffect 提升真实感。
 - **2025-11-19**：同一个 DeckScene 必须负责 `viewState`、视距滑杆与 UI 状态同步，搜索栏通过 Google Maps Key 支持地址或纬经度跳转，Provider/Labels 控件需要实时暴露 API Key 健康与坐标显示的开关。
 - **2025-11-19**：模型导入必须支持 GLB/GLTF/OBJ，进入 “Move” 模式后，用户可通过点击 Google Photorealistic 地图或直接编辑纬经度输入框来更新模型位置，所有变化实时同步 Deck ScenegraphLayer。
+- **2025-11-20**：调用 Elevation API 必须同时在 URL 追加 `?key=` 并附上 `X-GOOG-API-KEY` 头，失败时要提示拒绝原因并允许手动高度调整，避免被误判为模型导入异常。
