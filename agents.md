@@ -187,3 +187,4 @@ tailwindcss + shadcn
 - **2025-11-19**：同一个 DeckScene 必须负责 `viewState`、视距滑杆与 UI 状态同步，搜索栏通过 Google Maps Key 支持地址或纬经度跳转，Provider/Labels 控件需要实时暴露 API Key 健康与坐标显示的开关。
 - **2025-11-19**：模型导入必须支持 GLB/GLTF/OBJ，进入 “Move” 模式后，用户可通过点击 Google Photorealistic 地图或直接编辑纬经度输入框来更新模型位置，所有变化实时同步 Deck ScenegraphLayer。
 - **2025-11-20**：调用 Elevation API 必须同时在 URL 追加 `?key=` 并附上 `X-GOOG-API-KEY` 头，失败时要提示拒绝原因并允许手动高度调整，避免被误判为模型导入异常。
+- **2025-11-20**：ScenegraphLayer 输入的 Blob/File 必须先转 object URL 并在更新时及时 revoke，模型加载错误要通过 onModelError 抛出到 UI/console，提升模型放置的可观测性。
