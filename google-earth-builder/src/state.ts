@@ -23,7 +23,7 @@ export interface ModelPosition {
 }
 
 export interface ModelState {
-  scenegraphUrl: string | null;
+  scenegraphSource: Blob | File | null;
   baseScale: number;
   transform: ModelTransform;
   position: ModelPosition;
@@ -43,7 +43,7 @@ export const createInitialViewState = (zoom: number): CameraViewState => ({
 });
 
 export const createModelState = (): ModelState => ({
-  scenegraphUrl: null,
+  scenegraphSource: null,
   baseScale: 1,
   transform: { scale: 1, rotation: 0, pitch: 0 },
   position: {

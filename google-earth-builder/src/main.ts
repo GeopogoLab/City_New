@@ -70,10 +70,9 @@ const exportGroupToGlbBlob = (group: Group): Promise<Blob> =>
     );
   });
 
-const createScenegraphUrl = async (group: Group): Promise<string> => {
+const createScenegraphBlob = async (group: Group): Promise<Blob> => {
   group.updateMatrixWorld(true);
-  const blob = await exportGroupToGlbBlob(group);
-  return URL.createObjectURL(blob);
+  return await exportGroupToGlbBlob(group);
 };
 
 const updateViewDistanceDisplay = (zoom: number) => {
@@ -116,19 +115,7 @@ const gltfExporter = new GLTFExporter();
 const modelState = createModelState();
 let activeMode: "translate" | "rotate" | "scale" = "translate";
 
-const clearScenegraphUrl = () => {
-  if (modelState.scenegraphUrl) {
-    URL.revokeObjectURL(modelState.scenegraphUrl);
-    modelState.scenegraphUrl = null;
-  }
-};
-
-const setScenegraphUrl = (url: string) => {
-  clearScenegraphUrl();
-  modelState.scenegraphUrl = url;
-};
-
-const hasActiveModel = () => Boolean(modelState.scenegraphUrl);
+const hasActiveModel = () => Boolean(modelState.scenegraphSource);
 
 const deckScene = new DeckScene({
   canvas: ensureDeckCanvas(mapDiv),
@@ -348,8 +335,8 @@ const placeModel = async (model: Group, format: SupportedModelFormat) => {
     altitude: 0,
   };
 
-  const scenegraphUrl = await createScenegraphUrl(model);
-  setScenegraphUrl(scenegraphUrl);
+  const scenegraphBlob = await createScenegraphBlob(model);
+  modelState.scenegraphSource = scenegraphBlob;
 
   toggleModelControls(true);
   resetTransformControls();
@@ -563,10 +550,6 @@ providerButton.addEventListener("click", () => {
     return;
   }
   setStatus("Google photorealistic tiles active.");
-});
-
-window.addEventListener("beforeunload", () => {
-  clearScenegraphUrl();
 });
 
 setStatus("Initializing photorealistic scene...");

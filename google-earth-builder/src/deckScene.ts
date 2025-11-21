@@ -162,7 +162,7 @@ export class DeckScene {
   }
 
   updateModel(modelState: ModelState | null) {
-    if (!modelState?.scenegraphUrl) {
+    if (!modelState?.scenegraphSource) {
       this.modelLayer = null;
       this.syncLayers();
       return;
@@ -170,7 +170,7 @@ export class DeckScene {
 
     this.modelLayer = new ScenegraphLayer({
       id: MODEL_LAYER_ID,
-      scenegraph: modelState.scenegraphUrl,
+      scenegraph: modelState.scenegraphSource,
       data: [
         {
           position: [
