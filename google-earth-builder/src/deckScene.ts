@@ -14,11 +14,17 @@ type CameraMode = "orbit" | "free";
 
 type DeckClickInfo = {
   coordinate?: [number, number] | null;
+  object?: unknown;
+  layer?: { id: string };
 };
 
 type MapClickPosition = {
   latitude: number;
   longitude: number;
+};
+
+type DragInfo = DeckClickInfo & {
+  sourceEvent?: PointerEvent | MouseEvent | TouchEvent;
 };
 
 type ControllerConfig = {
@@ -35,6 +41,9 @@ type DeckSceneCallbacks = {
   onTileError?: (error: unknown) => void;
   onMapClick?: (position: MapClickPosition) => void;
   onModelError?: (error: unknown) => void;
+  onModelDragStart?: (info: MapClickPosition) => void;
+  onModelDrag?: (info: MapClickPosition) => void;
+  onModelDragEnd?: () => void;
 };
 
 type DeckSceneOptions = {
@@ -91,6 +100,9 @@ export class DeckScene {
       onViewStateChange: ({ viewState }) => {
         this.setViewState(viewState as Partial<CameraViewState>);
       },
+      onDragStart: (info) => this.handleDrag(info as DragInfo, "start"),
+      onDrag: (info) => this.handleDrag(info as DragInfo, "drag"),
+      onDragEnd: (info) => this.handleDrag(info as DragInfo, "end"),
       onClick: (info) => {
         this.handleMapClick(info as DeckClickInfo);
       },
@@ -219,6 +231,19 @@ export class DeckScene {
     if (!info.coordinate) return;
     const [longitude, latitude] = info.coordinate;
     this.callbacks.onMapClick?.({ latitude, longitude });
+  }
+
+  private handleDrag(info: DragInfo, phase: "start" | "drag" | "end") {
+    if (!info.coordinate) return;
+    if (info.layer?.id !== MODEL_LAYER_ID) return;
+    const [longitude, latitude] = info.coordinate;
+    if (phase === "start") {
+      this.callbacks.onModelDragStart?.({ latitude, longitude });
+    } else if (phase === "drag") {
+      this.callbacks.onModelDrag?.({ latitude, longitude });
+    } else {
+      this.callbacks.onModelDragEnd?.();
+    }
   }
 }
 

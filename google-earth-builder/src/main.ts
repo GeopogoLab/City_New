@@ -127,6 +127,7 @@ const modelState = createModelState();
 let activeMode: "translate" | "rotate" | "scale" = "translate";
 let elevationServicePromise: Promise<google.maps.ElevationService | null> | null = null;
 let mapsScriptPromise: Promise<typeof google.maps | null> | null = null;
+let isDraggingModel = false;
 
 const hasActiveModel = () => Boolean(modelState.scenegraphSource);
 
@@ -153,6 +154,21 @@ const deckScene = new DeckScene({
     onModelError: (error) => {
       console.error("Scenegraph load error:", error);
       setStatus("Model failed to render. See console for details.");
+    },
+    onModelDragStart: ({ latitude, longitude }) => {
+      if (!hasActiveModel() || activeMode !== "translate") return;
+      isDraggingModel = true;
+      setStatus("Dragging model. Release to drop.");
+      updateModelPosition(latitude, longitude);
+    },
+    onModelDrag: ({ latitude, longitude }) => {
+      if (!isDraggingModel || !hasActiveModel() || activeMode !== "translate") return;
+      updateModelPosition(latitude, longitude);
+    },
+    onModelDragEnd: () => {
+      if (!isDraggingModel) return;
+      isDraggingModel = false;
+      setStatus("Model moved. Adjust altitude if needed.");
     },
   },
 });
@@ -400,6 +416,7 @@ const handleMapPlacement = (latitude: number, longitude: number) => {
     setStatus("Switch to Move mode to reposition the model.");
     return;
   }
+  if (isDraggingModel) return;
   updateModelPosition(latitude, longitude);
   setStatus("Model moved to selected map location.");
 };
