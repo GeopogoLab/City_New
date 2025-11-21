@@ -23,7 +23,7 @@ export interface ModelPosition {
 }
 
 export interface ModelState {
-  scenegraphSource: Blob | File | null;
+  scenegraphSource: Blob | File | string | null;
   baseScale: number;
   transform: ModelTransform;
   position: ModelPosition;

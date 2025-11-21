@@ -168,9 +168,14 @@ export class DeckScene {
       return;
     }
 
+    const scenegraph =
+      modelState.scenegraphSource instanceof Blob || modelState.scenegraphSource instanceof File
+        ? URL.createObjectURL(modelState.scenegraphSource)
+        : modelState.scenegraphSource;
+
     this.modelLayer = new ScenegraphLayer({
       id: MODEL_LAYER_ID,
-      scenegraph: modelState.scenegraphSource,
+      scenegraph,
       data: [
         {
           position: [

@@ -1,4 +1,5 @@
 import "./style.css";
+import { Loader } from "@googlemaps/js-api-loader";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
@@ -121,6 +122,7 @@ const objLoader = new OBJLoader();
 const gltfExporter = new GLTFExporter();
 const modelState = createModelState();
 let activeMode: "translate" | "rotate" | "scale" = "translate";
+let elevationServicePromise: Promise<google.maps.ElevationService | null> | null = null;
 
 const hasActiveModel = () => Boolean(modelState.scenegraphSource);
 
@@ -247,6 +249,24 @@ const updateProviderStatus = () => {
   providerButton.title = "Google photorealistic tiles enabled.";
 };
 
+const getElevationService = (): Promise<google.maps.ElevationService | null> | null => {
+  if (!googleMapsApiKey) return null;
+  if (!elevationServicePromise) {
+    const loader = new Loader({
+      apiKey: googleMapsApiKey,
+      version: "weekly",
+    });
+    elevationServicePromise = loader
+      .load()
+      .then(() => new google.maps.ElevationService())
+      .catch((error) => {
+        console.error("ElevationService load failed:", error);
+        return null;
+      });
+  }
+  return elevationServicePromise;
+};
+
 type SupportedModelFormat = "gltf" | "glb" | "obj";
 
 const detectModelFormat = (filename: string): SupportedModelFormat | null => {
@@ -283,6 +303,26 @@ const fetchGroundAltitude = async (lat: number, lng: number): Promise<ElevationR
       reason: "Google Maps API key missing or Elevation API not enabled",
     };
   }
+
+  const service = getElevationService();
+  if (service) {
+    try {
+      const svc = await service;
+      if (svc) {
+        const response = await svc.getElevationForLocations({ locations: [{ lat, lng }] });
+        const parsed = extractElevationResult(response as unknown as ElevationApiResponse);
+        if (parsed.altitude === null && parsed.reason) {
+          console.error("ElevationService missing data:", parsed.reason);
+        } else if (parsed.altitude !== null) {
+          console.debug("ElevationService altitude(m):", parsed.altitude.toFixed(2));
+        }
+        return parsed;
+      }
+    } catch (error) {
+      console.error("ElevationService failed:", error);
+    }
+  }
+
   try {
     const response = await fetch(
       `https://maps.googleapis.com/maps/api/elevation/json?locations=${lat},${lng}&key=${googleMapsApiKey}`,
@@ -302,6 +342,8 @@ const fetchGroundAltitude = async (lat: number, lng: number): Promise<ElevationR
 
     if (parsed.altitude === null && parsed.reason) {
       console.error("Elevation API missing data:", parsed.reason);
+    } else if (parsed.altitude !== null) {
+      console.debug("Elevation REST altitude(m):", parsed.altitude.toFixed(2));
     }
 
     return parsed;
