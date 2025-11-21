@@ -407,7 +407,7 @@ const handleMapPlacement = (latitude: number, longitude: number) => {
 const placeModel = async (model: Group, format: SupportedModelFormat) => {
   console.debug("Placing model", { format });
   normalizeModel(model);
-  modelState.baseScale = model.scale.x;
+  modelState.baseScale = model.scale.x * 0.1; // shrink initial placement to 1/10
   modelState.transform.scale = modelState.baseScale;
   modelState.transform.rotation = 0;
   modelState.transform.pitch = 0;
