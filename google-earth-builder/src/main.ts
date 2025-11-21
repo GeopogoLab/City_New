@@ -1,5 +1,4 @@
 import "./style.css";
-import { Loader } from "@googlemaps/js-api-loader";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
@@ -14,7 +13,7 @@ import {
 } from "./utils";
 import { DeckScene, type CameraMode } from "./deckScene";
 import { clampZoom, createInitialViewState, createModelState } from "./state";
-import { VIEW_DISTANCE_RANGE } from "./constants";
+import { VIEW_DISTANCE_RANGE, SCALE_RANGE } from "./constants";
 import { getGoogleMapsApiKey, shouldAutoCenterOnTileset } from "./env";
 
 const mapDiv = document.querySelector<HTMLDivElement>("#map")!;
@@ -113,6 +112,10 @@ viewDistanceSlider.min = VIEW_DISTANCE_RANGE.min.toString();
 viewDistanceSlider.max = VIEW_DISTANCE_RANGE.max.toString();
 viewDistanceSlider.value = initialZoom.toString();
 updateViewDistanceDisplay(initialZoom);
+scaleSlider.min = SCALE_RANGE.min.toString();
+scaleSlider.max = SCALE_RANGE.max.toString();
+scaleSlider.step = SCALE_RANGE.step.toString();
+scaleSlider.value = SCALE_RANGE.default.toString();
 
 const initialViewState = createInitialViewState(initialZoom);
 let currentViewState = initialViewState;
@@ -123,6 +126,7 @@ const gltfExporter = new GLTFExporter();
 const modelState = createModelState();
 let activeMode: "translate" | "rotate" | "scale" = "translate";
 let elevationServicePromise: Promise<google.maps.ElevationService | null> | null = null;
+let mapsScriptPromise: Promise<typeof google.maps | null> | null = null;
 
 const hasActiveModel = () => Boolean(modelState.scenegraphSource);
 
@@ -170,8 +174,8 @@ const updateModelLayer = () => {
 };
 
 const resetTransformControls = () => {
-  scaleSlider.value = "1";
-  scaleValue.textContent = "1.0x";
+  scaleSlider.value = SCALE_RANGE.default.toString();
+  scaleValue.textContent = `${SCALE_RANGE.default.toFixed(2)}x`;
   rotationSlider.value = "0";
   rotationValue.textContent = "0°";
   pitchSlider.value = "0";
@@ -503,9 +507,13 @@ viewDistanceSlider.addEventListener("input", () => {
 
 scaleSlider.addEventListener("input", () => {
   if (!hasActiveModel()) return;
-  const multiplier = parseFloat(scaleSlider.value);
+  const raw = parseFloat(scaleSlider.value);
+  const multiplier = Math.min(SCALE_RANGE.max, Math.max(SCALE_RANGE.min, raw));
+  if (multiplier !== raw) {
+    scaleSlider.value = multiplier.toString();
+  }
   modelState.transform.scale = modelState.baseScale * multiplier;
-  scaleValue.textContent = `${multiplier.toFixed(1)}x`;
+  scaleValue.textContent = `${multiplier.toFixed(2)}x`;
   updateModelLayer();
 });
 

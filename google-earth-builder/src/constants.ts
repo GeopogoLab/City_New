@@ -9,6 +9,13 @@ export const VIEW_DISTANCE_RANGE = {
   default: 15,
 };
 
+export const SCALE_RANGE = {
+  min: 0.01,
+  max: 3,
+  default: 1,
+  step: 0.01,
+};
+
 export const CAMERA_DEFAULTS = {
   pitch: 65,
   bearing: -20,
