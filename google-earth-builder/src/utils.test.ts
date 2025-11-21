@@ -5,6 +5,7 @@ import {
   isValidModelFile,
   formatAltitude,
   updateAnchorPosition,
+  extractElevationResult,
 } from "./utils";
 
 describe("normalizeModel", () => {
@@ -168,5 +169,40 @@ describe("updateAnchorPosition", () => {
     expect(result.lat).toBe(-33.8688);
     expect(result.lng).toBe(151.2093);
     expect(result.altitude).toBe(-10);
+  });
+});
+
+describe("extractElevationResult", () => {
+  it("returns altitude when status is OK", () => {
+    const result = extractElevationResult({
+      status: "OK",
+      results: [{ elevation: 123.45 }],
+    });
+    expect(result.altitude).toBeCloseTo(123.45, 2);
+    expect(result.reason).toBeUndefined();
+  });
+
+  it("returns reason when status is not OK and error message is provided", () => {
+    const result = extractElevationResult({
+      status: "REQUEST_DENIED",
+      error_message: "Elevation API not enabled",
+    });
+    expect(result.altitude).toBeNull();
+    expect(result.reason).toBe("Elevation API not enabled");
+  });
+
+  it("returns reason when elevation result is missing", () => {
+    const result = extractElevationResult({
+      status: "OK",
+      results: [],
+    });
+    expect(result.altitude).toBeNull();
+    expect(result.reason).toBe("Elevation result missing");
+  });
+
+  it("handles null payload", () => {
+    const result = extractElevationResult(null);
+    expect(result.altitude).toBeNull();
+    expect(result.reason).toBe("Elevation API returned an empty payload");
   });
 });

@@ -3,7 +3,14 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import type { Group } from "three";
-import { normalizeModel, isValidModelFile, formatAltitude } from "./utils";
+import {
+  normalizeModel,
+  isValidModelFile,
+  formatAltitude,
+  extractElevationResult,
+  type ElevationApiResponse,
+  type ElevationResult,
+} from "./utils";
 import { DeckScene, type CameraMode } from "./deckScene";
 import { clampZoom, createInitialViewState, createModelState } from "./state";
 import { VIEW_DISTANCE_RANGE } from "./constants";
@@ -269,22 +276,41 @@ setCameraMode(cameraMode);
 setLabelsVisible(labelsVisible);
 updateProviderStatus();
 
-const fetchGroundAltitude = async (lat: number, lng: number): Promise<number | null> => {
-  if (!googleMapsApiKey) return null;
+const fetchGroundAltitude = async (lat: number, lng: number): Promise<ElevationResult> => {
+  if (!googleMapsApiKey) {
+    return {
+      altitude: null,
+      reason: "Google Maps API key missing or Elevation API not enabled",
+    };
+  }
   try {
     const response = await fetch(
-      `https://maps.googleapis.com/maps/api/elevation/json?locations=${lat},${lng}&key=${googleMapsApiKey}`
+      `https://maps.googleapis.com/maps/api/elevation/json?locations=${lat},${lng}&key=${googleMapsApiKey}`,
+      {
+        headers: {
+          "X-GOOG-API-KEY": googleMapsApiKey,
+        },
+      }
     );
+    const body = (await response.json().catch(() => null)) as ElevationApiResponse | null;
+    const parsed = extractElevationResult(body);
+
     if (!response.ok) {
-      console.error("Elevation API error:", response.statusText);
-      return null;
+      console.error("Elevation API error:", response.status, parsed.reason);
+      return { altitude: null, reason: parsed.reason ?? response.statusText };
     }
-    const body: { results?: { elevation: number }[] } = await response.json();
-    if (!body.results?.length) return null;
-    return body.results[0].elevation;
+
+    if (parsed.altitude === null && parsed.reason) {
+      console.error("Elevation API missing data:", parsed.reason);
+    }
+
+    return parsed;
   } catch (error) {
     console.error("Elevation fetch failed:", error);
-    return null;
+    return {
+      altitude: null,
+      reason: error instanceof Error ? error.message : "Unknown error",
+    };
   }
 };
 
@@ -295,9 +321,13 @@ const dropModelToTerrain = async () => {
   dropToGroundButton.textContent = "Snapping...";
   setStatus("Aligning model with terrain...");
   try {
-    const altitude = await fetchGroundAltitude(modelState.position.lat, modelState.position.lng);
+    const { altitude, reason } = await fetchGroundAltitude(
+      modelState.position.lat,
+      modelState.position.lng
+    );
     if (altitude === null) {
-      setStatus("Unable to fetch elevation data. Adjust altitude manually.");
+      const errorHint = reason ? `Elevation lookup failed (${reason}).` : "Unable to fetch elevation data.";
+      setStatus(`${errorHint} Adjust altitude manually.`);
       return;
     }
     modelState.position.altitude = altitude;

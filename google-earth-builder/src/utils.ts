@@ -1,6 +1,17 @@
 import { Box3, Group, Vector3 } from "three";
 import { MODEL_BASE_SIZE } from "./constants";
 
+export type ElevationApiResponse = {
+  results?: { elevation?: number }[];
+  status?: string;
+  error_message?: string;
+};
+
+export type ElevationResult = {
+  altitude: number | null;
+  reason?: string;
+};
+
 /**
  * Normalizes a 3D model by scaling it to a standard size and centering its pivot point
  * @param model - The Three.js Group object representing the 3D model
@@ -52,4 +63,18 @@ export const updateAnchorPosition = (
     lng: lng ?? currentAnchor.lng,
     altitude: altitude ?? currentAnchor.altitude,
   };
+};
+
+export const extractElevationResult = (response: ElevationApiResponse | null): ElevationResult => {
+  if (!response) {
+    return { altitude: null, reason: "Elevation API returned an empty payload" };
+  }
+  if (response.status && response.status !== "OK") {
+    return { altitude: null, reason: response.error_message || response.status };
+  }
+  const elevation = response.results?.[0]?.elevation;
+  if (typeof elevation !== "number" || Number.isNaN(elevation)) {
+    return { altitude: null, reason: "Elevation result missing" };
+  }
+  return { altitude: elevation };
 };
