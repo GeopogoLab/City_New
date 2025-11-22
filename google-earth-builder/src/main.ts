@@ -23,6 +23,7 @@ const statusLabel = document.querySelector<HTMLSpanElement>("#status")!;
 const coordsLabel = document.querySelector<HTMLSpanElement>("#coordinates")!;
 const modelControlsPanel = document.querySelector<HTMLElement>("#modelControlsPanel")!;
 const searchInput = document.querySelector<HTMLInputElement>("#searchInput")!;
+const searchResults = document.querySelector<HTMLDivElement>("#searchResults")!;
 const labelsToggle = document.querySelector<HTMLButtonElement>("#labelsToggle")!;
 const providerButton = document.querySelector<HTMLButtonElement>("#providerButton")!;
 const providerStatus = document.querySelector<HTMLSpanElement>("#providerStatus")!;
@@ -451,47 +452,107 @@ const placeModel = async (model: Group, format: SupportedModelFormat) => {
 };
 
 type Coordinates = { lat: number; lng: number };
+type SearchSuggestion = { label: string; detail: string; location: Coordinates };
 
-const geocodeAddress = async (query: string): Promise<Coordinates | null> => {
-  if (!googleMapsApiKey) return null;
+const clearSearchResults = () => {
+  searchResults.innerHTML = "";
+  searchResults.classList.add("hidden");
+};
+
+const renderSearchResults = (items: SearchSuggestion[]) => {
+  if (!items.length) {
+    clearSearchResults();
+    return;
+  }
+  const list = document.createElement("ul");
+  items.forEach((item) => {
+    const li = document.createElement("li");
+    li.innerHTML = `${item.label}<span class=\"secondary\">${item.detail}</span>`;
+    li.addEventListener("click", () => {
+      deckScene.setViewState({ latitude: item.location.lat, longitude: item.location.lng });
+      setStatus(`Camera centered on ${item.label}`);
+      clearSearchResults();
+    });
+    list.appendChild(li);
+  });
+  searchResults.innerHTML = "";
+  searchResults.appendChild(list);
+  searchResults.classList.remove("hidden");
+};
+
+const parseLatLngInput = (query: string): Coordinates | null => {
+  const match = query.trim().match(/^\s*(-?\d+(\.\d+)?),\s*(-?\d+(\.\d+)?)\s*$/);
+  if (!match) return null;
+  const lat = Number(match[1]);
+  const lng = Number(match[3]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return { lat, lng };
+};
+
+const geocodeAddress = async (query: string): Promise<SearchSuggestion[]> => {
+  if (!googleMapsApiKey) return [];
   try {
     const response = await fetch(
       `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${googleMapsApiKey}`
     );
     if (!response.ok) {
       console.error("Geocoding API error:", response.statusText);
-      return null;
+      return [];
     }
     const body: {
-      results?: { geometry: { location: Coordinates } }[];
+      results?: { formatted_address: string; geometry: { location: Coordinates } }[];
       status?: string;
     } = await response.json();
-    if (!body.results?.length || body.status === "ZERO_RESULTS") return null;
-    return body.results[0].geometry.location;
+    if (!body.results?.length || body.status === "ZERO_RESULTS") return [];
+    return body.results.slice(0, 5).map((r) => ({
+      label: r.formatted_address,
+      detail: `${r.geometry.location.lat.toFixed(5)}, ${r.geometry.location.lng.toFixed(5)}`,
+      location: r.geometry.location,
+    }));
   } catch (error) {
     console.error("Geocoding fetch failed:", error);
-    return null;
+    return [];
   }
 };
 
+let searchDebounce: number | null = null;
+
 const handleSearch = async () => {
   const query = searchInput.value.trim();
-  if (!query) return;
+  if (!query) {
+    clearSearchResults();
+    return;
+  }
+
+  const latLng = parseLatLngInput(query);
+  if (latLng) {
+    deckScene.setViewState({
+      latitude: latLng.lat,
+      longitude: latLng.lng,
+    });
+    setStatus(`Camera centered on ${latLng.lat.toFixed(5)}, ${latLng.lng.toFixed(5)}`);
+    clearSearchResults();
+    return;
+  }
+
   if (!googleMapsApiKey) {
     setStatus("Google Maps API key missing. Search unavailable.");
     return;
   }
   setStatus("Searching for location...");
-  const result = await geocodeAddress(query);
-  if (!result) {
+  const suggestions = await geocodeAddress(query);
+  renderSearchResults(suggestions);
+  if (!suggestions.length) {
     setStatus("Unable to locate that address. Try latitude,longitude or refine your search.");
     return;
   }
+  const first = suggestions[0];
   deckScene.setViewState({
-    latitude: result.lat,
-    longitude: result.lng,
+    latitude: first.location.lat,
+    longitude: first.location.lng,
   });
-  setStatus(`Camera centered on ${query}`);
+  setStatus(`Camera centered on ${first.label}`);
 };
 
 const handleFileUpload = (file: File) => {
@@ -694,6 +755,19 @@ searchInput.addEventListener("keydown", (event) => {
   if (event.key !== "Enter") return;
   event.preventDefault();
   void handleSearch();
+});
+
+searchInput.addEventListener("input", () => {
+  if (searchDebounce) {
+    window.clearTimeout(searchDebounce);
+  }
+  searchDebounce = window.setTimeout(() => {
+    void handleSearch();
+  }, 250);
+});
+
+searchInput.addEventListener("blur", () => {
+  window.setTimeout(() => clearSearchResults(), 150);
 });
 
 providerButton.addEventListener("click", () => {
