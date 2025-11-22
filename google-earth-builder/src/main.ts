@@ -131,8 +131,10 @@ let isDraggingModel = false;
 
 const hasActiveModel = () => Boolean(modelState.scenegraphSource);
 
+const deckCanvas = ensureDeckCanvas(mapDiv);
+
 const deckScene = new DeckScene({
-  canvas: ensureDeckCanvas(mapDiv),
+  canvas: deckCanvas,
   initialViewState,
   shouldAutoCenter: shouldAutoCenterOnTileset,
   initialCameraMode: "orbit",
@@ -576,6 +578,53 @@ positionLngInput.addEventListener("change", () => {
 dropToGroundButton.addEventListener("click", (event) => {
   event.preventDefault();
   void dropModelToTerrain();
+});
+
+const startModelDrag = async (event: PointerEvent) => {
+  if (!hasActiveModel() || activeMode !== "translate") return;
+  const hit = await deckScene.pickModel({ x: event.clientX, y: event.clientY });
+  if (!hit) return;
+  isDraggingModel = true;
+  deckCanvas.setPointerCapture(event.pointerId);
+  updateModelPosition(hit.latitude, hit.longitude);
+  setStatus("Dragging model. Release to drop.");
+  event.preventDefault();
+};
+
+const continueModelDrag = (event: PointerEvent) => {
+  if (!isDraggingModel) return;
+  const position = deckScene.unproject({ x: event.clientX, y: event.clientY });
+  if (position) {
+    updateModelPosition(position.latitude, position.longitude);
+    setStatus("Dragging model. Release to drop.");
+  }
+};
+
+const endModelDrag = (event: PointerEvent) => {
+  if (!isDraggingModel) return;
+  isDraggingModel = false;
+  try {
+    deckCanvas.releasePointerCapture(event.pointerId);
+  } catch (err) {
+    console.warn("Pointer capture release failed:", err);
+  }
+  setStatus("Model moved. Adjust altitude if needed.");
+};
+
+deckCanvas.addEventListener("pointerdown", (event) => {
+  void startModelDrag(event);
+});
+
+deckCanvas.addEventListener("pointermove", (event) => {
+  continueModelDrag(event);
+});
+
+deckCanvas.addEventListener("pointerup", (event) => {
+  endModelDrag(event);
+});
+
+deckCanvas.addEventListener("pointercancel", (event) => {
+  endModelDrag(event);
 });
 
 centerToCameraButton.addEventListener("click", (event) => {

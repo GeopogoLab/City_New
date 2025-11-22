@@ -245,6 +245,26 @@ export class DeckScene {
       this.callbacks.onModelDragEnd?.();
     }
   }
+
+  async pickModel(screen: { x: number; y: number }): Promise<MapClickPosition | null> {
+    if (!this.deck) return null;
+    const picked = await this.deck.pickObject({
+      x: screen.x,
+      y: screen.y,
+      layerIds: [MODEL_LAYER_ID],
+    });
+    const coord = picked?.coordinate;
+    if (!coord || coord.length < 2) return null;
+    const [longitude, latitude] = coord;
+    return { latitude, longitude };
+  }
+
+  unproject(screen: { x: number; y: number }): MapClickPosition | null {
+    const viewport = this.deck?.getViewports?.()[0];
+    if (!viewport) return null;
+    const [longitude, latitude] = viewport.unproject([screen.x, screen.y]);
+    return { latitude, longitude };
+  }
 }
 
 export type { CameraMode };
