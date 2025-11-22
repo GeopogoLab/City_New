@@ -190,12 +190,17 @@ export class DeckScene {
       this.ownedScenegraphUrl = null;
     }
 
-    const scenegraph =
-      modelState.scenegraphSource instanceof Blob || modelState.scenegraphSource instanceof File
-        ? URL.createObjectURL(modelState.scenegraphSource)
-        : modelState.scenegraphSource;
+    const source = modelState.scenegraphSource;
+    const isBlobLike = (value: unknown): value is Blob | File =>
+      value instanceof Blob || value instanceof File;
 
-    if (scenegraph.startsWith("blob:")) {
+    const scenegraph = isBlobLike(source)
+      ? URL.createObjectURL(source)
+      : typeof source === "string"
+        ? source
+        : "";
+
+    if (scenegraph && scenegraph.startsWith("blob:")) {
       this.ownedScenegraphUrl = scenegraph;
     }
 

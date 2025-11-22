@@ -126,8 +126,6 @@ const objLoader = new OBJLoader();
 const gltfExporter = new GLTFExporter();
 const modelState = createModelState();
 let activeMode: "translate" | "rotate" | "scale" = "translate";
-let elevationServicePromise: Promise<google.maps.ElevationService | null> | null = null;
-let mapsScriptPromise: Promise<typeof google.maps | null> | null = null;
 let isDraggingModel = false;
 
 const hasActiveModel = () => Boolean(modelState.scenegraphSource);
@@ -277,21 +275,7 @@ const updateProviderStatus = () => {
 };
 
 const getElevationService = (): Promise<google.maps.ElevationService | null> | null => {
-  if (!googleMapsApiKey) return null;
-  if (!elevationServicePromise) {
-    const loader = new Loader({
-      apiKey: googleMapsApiKey,
-      version: "weekly",
-    });
-    elevationServicePromise = loader
-      .load()
-      .then(() => new google.maps.ElevationService())
-      .catch((error) => {
-        console.error("ElevationService load failed:", error);
-        return null;
-      });
-  }
-  return elevationServicePromise;
+  return null;
 };
 
 type SupportedModelFormat = "gltf" | "glb" | "obj";
