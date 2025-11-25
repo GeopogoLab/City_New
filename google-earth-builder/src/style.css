@@ -64,41 +64,6 @@ body {
   box-shadow: var(--shadow-lg);
 }
 
-/* Toolbar Icons */
-.toolbar-icons {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-}
-
-.icon-btn {
-  width: 44px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-secondary);
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.icon-btn:hover {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-}
-
-.icon-btn.active {
-  background: var(--accent-orange);
-  color: white;
-}
-
-.icon-btn svg {
-  flex-shrink: 0;
-}
-
 .logo {
   font-size: 18px;
   font-weight: 700;
