@@ -7,6 +7,37 @@
     <title>GeoPogo Earth Builder</title>
   </head>
   <body>
+    <div id="startScreen" class="start-screen">
+      <div class="start-screen__background">
+        <img src="https://images.unsplash.com/photo-1501594907352-04cda38ebc29?q=80&w=2000&auto=format&fit=crop" alt="City skyline" />
+        <div class="start-screen__gradient start-screen__gradient--horizontal"></div>
+        <div class="start-screen__gradient start-screen__gradient--vertical"></div>
+      </div>
+
+      <div class="start-screen__content">
+        <header class="start-screen__nav">
+          <div class="start-screen__logo">GEOPOGO</div>
+        </header>
+
+        <main class="start-screen__body">
+          <p class="start-screen__eyebrow">GEOPOGO</p>
+          <h1 class="start-screen__title">CITIES</h1>
+          <p class="start-screen__subtitle">
+            Geopogo Cities AI gives access to 3D city data around the world for you to import your 3D and BIM design models,
+            analyze them on site, and render and animate with the power of the latest AI models.
+          </p>
+
+          <div class="start-screen__actions">
+            <button id="startScreenButton" class="start-screen__button" disabled>Loading map...</button>
+            <div class="start-screen__progress">
+              <span id="startScreenBar" class="start-screen__progress-bar"></span>
+            </div>
+            <p id="startScreenMessage" class="start-screen__status">Preparing photorealistic 3D map...</p>
+          </div>
+        </main>
+      </div>
+    </div>
+
     <div id="app">
       <div id="map"></div>
       <div class="overlay">

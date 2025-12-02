@@ -14,7 +14,7 @@ import {
 import { DeckScene, type CameraMode } from "./deckScene";
 import { clampZoom, createInitialViewState, createModelState } from "./state";
 import { VIEW_DISTANCE_RANGE, SCALE_RANGE } from "./constants";
-import { getGoogleMapsApiKey, shouldAutoCenterOnTileset } from "./env";
+import { getGoogleMapsApiKey, getMapboxAccessToken, shouldAutoCenterOnTileset } from "./env";
 
 const mapDiv = document.querySelector<HTMLDivElement>("#map")!;
 const fileInput = document.querySelector<HTMLInputElement>("#modelInput")!;
@@ -30,6 +30,9 @@ const providerStatus = document.querySelector<HTMLSpanElement>("#providerStatus"
 const positionLatInput = document.querySelector<HTMLInputElement>("#positionLat")!;
 const positionLngInput = document.querySelector<HTMLInputElement>("#positionLng")!;
 const centerToCameraButton = document.querySelector<HTMLButtonElement>("#centerToCamera")!;
+const startScreen = document.querySelector<HTMLElement>("#startScreen")!;
+const startScreenMessage = document.querySelector<HTMLParagraphElement>("#startScreenMessage")!;
+const startScreenButton = document.querySelector<HTMLButtonElement>("#startScreenButton")!;
 
 const scaleSlider = document.querySelector<HTMLInputElement>("#scale")!;
 const scaleValue = document.querySelector<HTMLSpanElement>("#scaleValue")!;
@@ -45,6 +48,55 @@ const viewDistanceValue = document.querySelector<HTMLSpanElement>("#viewDistance
 const dropToGroundButton = document.querySelector<HTMLButtonElement>("#dropToGround")!;
 const cameraModeButtons = document.querySelectorAll<HTMLButtonElement>("[data-camera]");
 const googleMapsApiKey = getGoogleMapsApiKey();
+const mapboxAccessToken = getMapboxAccessToken();
+
+let startScreenReady = false;
+let startScreenHideTimer: number | null = null;
+let startScreenFallbackTimer: number | null = null;
+
+const setStartScreenMessage = (message: string) => {
+  startScreenMessage.textContent = message;
+};
+
+const showStartScreenLoading = (message: string) => {
+  startScreenReady = false;
+  startScreen.classList.remove("start-screen--ready", "start-screen--hidden");
+  startScreenButton.disabled = true;
+  startScreenButton.textContent = "Loading map...";
+  setStartScreenMessage(message);
+  if (startScreenHideTimer !== null) {
+    window.clearTimeout(startScreenHideTimer);
+    startScreenHideTimer = null;
+  }
+  if (startScreenFallbackTimer !== null) {
+    window.clearTimeout(startScreenFallbackTimer);
+    startScreenFallbackTimer = null;
+  }
+  startScreen.style.display = "flex";
+};
+
+const markStartScreenReady = (message: string) => {
+  startScreenReady = true;
+  startScreen.classList.add("start-screen--ready");
+  startScreenButton.disabled = false;
+  startScreenButton.textContent = "Start";
+  setStartScreenMessage(message);
+  if (startScreenFallbackTimer !== null) {
+    window.clearTimeout(startScreenFallbackTimer);
+    startScreenFallbackTimer = null;
+  }
+  startScreenHideTimer = window.setTimeout(() => {
+    hideStartScreen();
+  }, 900);
+};
+
+const hideStartScreen = () => {
+  if (startScreen.classList.contains("start-screen--hidden")) return;
+  startScreen.classList.add("start-screen--hidden");
+  startScreenHideTimer = window.setTimeout(() => {
+    startScreen.style.display = "none";
+  }, 700);
+};
 
 const clampValue = (value: string | number | null): number => {
   if (typeof value === "number") return value;
@@ -55,6 +107,19 @@ const clampValue = (value: string | number | null): number => {
 
 const clampLatitude = (value: number) => Math.max(-90, Math.min(90, value));
 const clampLongitude = (value: number) => Math.max(-180, Math.min(180, value));
+
+const isTypingTarget = (target: EventTarget | null) => {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName.toLowerCase();
+  return tag === "input" || tag === "textarea" || target.isContentEditable;
+};
+
+const getKeyboardPanStep = (zoom: number) => {
+  // Smaller steps when zoomed in, larger when zoomed out.
+  const base = 0.0025; // degrees at mid zoom
+  const factor = Math.pow(0.6, Math.max(0, zoom - 12));
+  return base * factor;
+};
 
 const exportGroupToGlbBlob = (group: Group): Promise<Blob> =>
   new Promise((resolve, reject) => {
@@ -143,11 +208,25 @@ const deckScene = new DeckScene({
       updateCoordinates(viewState.latitude, viewState.longitude);
       updateViewDistanceDisplay(viewState.zoom);
     },
-    onTilesetLoad: () => setStatus("Photorealistic 3D map ready. Load a model to continue."),
+    onTilesetLoad: () => {
+      setStatus("Photorealistic 3D map ready. Load a model to continue.");
+      markStartScreenReady("Photorealistic 3D map ready.");
+    },
     onTileLoad: (tile) => console.debug("Tile loaded", tile),
     onTileError: (error) => {
       console.error("Tile error:", error);
       setStatus("Failed to load Google photorealistic tiles. Verify API quota.");
+      if (!startScreenReady && !startScreen.classList.contains("start-screen--hidden")) {
+        startScreenReady = true;
+        startScreen.classList.add("start-screen--ready");
+        startScreenButton.disabled = false;
+        startScreenButton.textContent = "Enter anyway";
+        setStartScreenMessage("Tiles could not stream. Check the API quota, or continue to retry in-app.");
+        if (startScreenHideTimer !== null) {
+          window.clearTimeout(startScreenHideTimer);
+          startScreenHideTimer = null;
+        }
+      }
     },
     onMapClick: ({ latitude, longitude }) => {
       handleMapPlacement(latitude, longitude);
@@ -176,6 +255,9 @@ const deckScene = new DeckScene({
 
 const setStatus = (message: string) => {
   statusLabel.textContent = message;
+  if (!startScreen.classList.contains("start-screen--hidden") && !startScreenReady) {
+    setStartScreenMessage(message);
+  }
 };
 
 const updateCoordinates = (lat: number, lng: number) => {
@@ -437,10 +519,21 @@ const placeModel = async (model: Group, format: SupportedModelFormat) => {
 
 type Coordinates = { lat: number; lng: number };
 type SearchSuggestion = { label: string; detail: string; location: Coordinates };
+type GeocodeResult = { suggestions: SearchSuggestion[]; error?: string };
+type MapboxFeature = {
+  place_name?: string;
+  text?: string;
+  center?: [number, number];
+};
 
 const clearSearchResults = () => {
   searchResults.innerHTML = "";
   searchResults.classList.add("hidden");
+};
+
+const showSearchMessage = (message: string) => {
+  searchResults.innerHTML = `<div class="search-results-message">${message}</div>`;
+  searchResults.classList.remove("hidden");
 };
 
 const renderSearchResults = (items: SearchSuggestion[]) => {
@@ -474,30 +567,75 @@ const parseLatLngInput = (query: string): Coordinates | null => {
   return { lat, lng };
 };
 
-const geocodeAddress = async (query: string): Promise<SearchSuggestion[]> => {
-  if (!googleMapsApiKey) return [];
+const geocodeWithMapbox = async (query: string, token: string): Promise<GeocodeResult> => {
+  const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&limit=5&autocomplete=true`;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      const text = await response.text();
+      return { suggestions: [], error: `Mapbox geocoding failed (${response.status}). ${text}` };
+    }
+    const body: { features?: MapboxFeature[]; message?: string } = await response.json();
+    if (body.message) return { suggestions: [], error: `Mapbox geocoding error: ${body.message}` };
+    const features = body.features ?? [];
+    const suggestions = features.slice(0, 5).flatMap((f) => {
+      if (!f.center || f.center.length < 2) return [];
+      const [lng, lat] = f.center;
+      const label = f.place_name ?? f.text ?? "Unnamed";
+      return [
+        {
+          label,
+          detail: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+          location: { lat, lng },
+        },
+      ];
+    });
+    return { suggestions };
+  } catch (error) {
+    console.error("Mapbox geocoding fetch failed:", error);
+    return { suggestions: [], error: "Mapbox geocoding network error." };
+  }
+};
+
+const geocodeWithGoogle = async (query: string): Promise<GeocodeResult> => {
+  if (!googleMapsApiKey) return { suggestions: [], error: "Google Maps API key missing. Search unavailable." };
   try {
     const response = await fetch(
       `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${googleMapsApiKey}`
     );
     if (!response.ok) {
-      console.error("Geocoding API error:", response.statusText);
-      return [];
+      console.error("Geocoding API error:", response.status, response.statusText);
+      return {
+        suggestions: [],
+        error: `Geocoding failed (${response.status}). Check API key/billing/referrer settings.`,
+      };
     }
     const body: {
       results?: { formatted_address: string; geometry: { location: Coordinates } }[];
       status?: string;
+      error_message?: string;
     } = await response.json();
-    if (!body.results?.length || body.status === "ZERO_RESULTS") return [];
-    return body.results.slice(0, 5).map((r) => ({
-      label: r.formatted_address,
-      detail: `${r.geometry.location.lat.toFixed(5)}, ${r.geometry.location.lng.toFixed(5)}`,
-      location: r.geometry.location,
-    }));
+    if (body.status && body.status !== "OK") {
+      const detail = body.error_message ? `: ${body.error_message}` : "";
+      return { suggestions: [], error: `Geocoding returned ${body.status}${detail}` };
+    }
+    if (!body.results?.length) return { suggestions: [] };
+    return {
+      suggestions: body.results.slice(0, 5).map((r) => ({
+        label: r.formatted_address,
+        detail: `${r.geometry.location.lat.toFixed(5)}, ${r.geometry.location.lng.toFixed(5)}`,
+        location: r.geometry.location,
+      })),
+    };
   } catch (error) {
     console.error("Geocoding fetch failed:", error);
-    return [];
+    return { suggestions: [], error: "Geocoding network error. Check connectivity or CORS." };
   }
+};
+
+const geocodeAddress = (query: string): Promise<GeocodeResult> => {
+  if (mapboxAccessToken) return geocodeWithMapbox(query, mapboxAccessToken);
+  return geocodeWithGoogle(query);
 };
 
 let searchDebounce: number | null = null;
@@ -520,15 +658,24 @@ const handleSearch = async () => {
     return;
   }
 
-  if (!googleMapsApiKey) {
-    setStatus("Google Maps API key missing. Search unavailable.");
+  if (!mapboxAccessToken && !googleMapsApiKey) {
+    setStatus("No geocoding provider configured. Add Mapbox or Google API key.");
+    showSearchMessage("No geocoder available. Set VITE_MAPBOX_ACCESS_TOKEN or VITE_GOOGLE_MAPS_API_KEY.");
     return;
   }
-  setStatus("Searching for location...");
-  const suggestions = await geocodeAddress(query);
+
+  const providerLabel = mapboxAccessToken ? "Mapbox" : "Google";
+  setStatus(`Searching for location via ${providerLabel}...`);
+  const { suggestions, error } = await geocodeAddress(query);
+  if (error) {
+    setStatus(error);
+    showSearchMessage(error);
+    return;
+  }
   renderSearchResults(suggestions);
   if (!suggestions.length) {
     setStatus("Unable to locate that address. Try latitude,longitude or refine your search.");
+    showSearchMessage("No results. Try a more specific address or lat,lng.");
     return;
   }
   const first = suggestions[0];
@@ -556,12 +703,52 @@ const handleFileUpload = (file: File) => {
 
 const bootScene = () => {
   if (!googleMapsApiKey) {
-    setStatus("Missing VITE_GOOGLE_MAPS_API_KEY. Cannot stream photorealistic Google Earth data.");
+    showStartScreenLoading("Missing VITE_GOOGLE_MAPS_API_KEY. You can still enter to view the UI.");
+    startScreenButton.textContent = "Enter without map";
+    startScreenButton.disabled = false;
+    setStatus("Missing VITE_GOOGLE_MAPS_API_KEY. Photorealistic tiles will not load.");
+    startScreenReady = true;
     return;
   }
+  showStartScreenLoading("Loading Google photorealistic 3D tiles...");
   setStatus("Loading Google photorealistic 3D tiles...");
   deckScene.initializeLayers(googleMapsApiKey);
+  startScreenFallbackTimer = window.setTimeout(() => {
+    if (startScreenReady) return;
+    startScreenReady = true;
+    startScreenButton.disabled = false;
+    startScreenButton.textContent = "Enter anyway";
+    setStartScreenMessage("Still loading tiles. You can enter while data streams.");
+  }, 5000);
 };
+
+startScreenButton.addEventListener("click", () => {
+  if (!startScreenReady) return;
+  hideStartScreen();
+});
+
+window.addEventListener("keydown", (event) => {
+  if (isTypingTarget(event.target)) return;
+  const key = event.key.toLowerCase();
+  const step = getKeyboardPanStep(currentViewState.zoom);
+  let lat = currentViewState.latitude;
+  let lng = currentViewState.longitude;
+
+  if (key === "w") {
+    lat += step;
+  } else if (key === "s") {
+    lat -= step;
+  } else if (key === "a") {
+    lng -= step;
+  } else if (key === "d") {
+    lng += step;
+  } else {
+    return;
+  }
+
+  event.preventDefault();
+  deckScene.setViewState({ latitude: clampLatitude(lat), longitude: clampLongitude(lng) });
+});
 
 viewDistanceSlider.addEventListener("input", () => {
   const zoomValue = clampZoom(Number(viewDistanceSlider.value));
