@@ -33,6 +33,7 @@ const centerToCameraButton = document.querySelector<HTMLButtonElement>("#centerT
 const startScreen = document.querySelector<HTMLElement>("#startScreen")!;
 const startScreenMessage = document.querySelector<HTMLParagraphElement>("#startScreenMessage")!;
 const startScreenButton = document.querySelector<HTMLButtonElement>("#startScreenButton")!;
+const startScreenProgress = document.querySelector<HTMLElement>(".start-screen__progress");
 
 const scaleSlider = document.querySelector<HTMLInputElement>("#scale")!;
 const scaleValue = document.querySelector<HTMLSpanElement>("#scaleValue")!;
@@ -103,13 +104,16 @@ const launchIntoApp = (message = "Launching experience...") => {
   if (startScreenLaunchTimer !== null) return;
   startScreen.classList.remove("start-screen--ready");
   startScreen.classList.add("start-screen--launching");
+  if (startScreenProgress) {
+    startScreenProgress.style.display = "block";
+  }
   startScreenButton.disabled = true;
   startScreenButton.textContent = "Starting...";
   setStartScreenMessage(message);
   startScreenLaunchTimer = window.setTimeout(() => {
     hideStartScreen();
     startScreenLaunchTimer = null;
-  }, 900);
+  }, 3000);
 };
 
 const clampValue = (value: string | number | null): number => {
