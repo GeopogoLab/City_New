@@ -208,7 +208,6 @@ body {
 }
 
 .start-screen__progress {
-  display: none;
   height: 6px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.12);
@@ -222,10 +221,6 @@ body {
   width: 50%;
   background: linear-gradient(90deg, rgba(249, 115, 22, 0.18) 0%, rgba(249, 115, 22, 0.95) 100%);
   animation: start-screen-progress 2s ease-in-out infinite;
-}
-
-.start-screen--launching .start-screen__progress {
-  display: block;
 }
 
 .start-screen--launching .start-screen__progress-bar {

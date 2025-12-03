@@ -33,7 +33,6 @@ const centerToCameraButton = document.querySelector<HTMLButtonElement>("#centerT
 const startScreen = document.querySelector<HTMLElement>("#startScreen")!;
 const startScreenMessage = document.querySelector<HTMLParagraphElement>("#startScreenMessage")!;
 const startScreenButton = document.querySelector<HTMLButtonElement>("#startScreenButton")!;
-const startScreenProgress = document.querySelector<HTMLElement>(".start-screen__progress");
 const captureButton = document.querySelector<HTMLButtonElement>("#captureButton")!;
 const screenshotModal = document.querySelector<HTMLDivElement>("#screenshotModal")!;
 const screenshotPreview = document.querySelector<HTMLImageElement>("#screenshotPreview")!;
@@ -113,9 +112,6 @@ const launchIntoApp = (message = "Launching experience...") => {
   if (startScreenLaunchTimer !== null) return;
   startScreen.classList.remove("start-screen--ready");
   startScreen.classList.add("start-screen--launching");
-  if (startScreenProgress) {
-    startScreenProgress.style.display = "block";
-  }
   startScreenButton.disabled = true;
   startScreenButton.textContent = "Starting...";
   setStartScreenMessage(message);
