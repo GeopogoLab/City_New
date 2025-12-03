@@ -366,26 +366,31 @@ const openScreenshotModal = () => {
   screenshotModal.classList.remove("hidden");
 };
 
-const setStatus = (message: string) => {
+function setStatus(message: string) {
   statusLabel.textContent = message;
   if (!startScreen.classList.contains("start-screen--hidden") && !startScreenReady) {
     setStartScreenMessage(message);
   }
-};
+}
 
-const updateCoordinates = (lat: number, lng: number) => {
+function updateCoordinates(lat: number, lng: number) {
   coordsLabel.textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-};
+}
 
-const toggleModelControls = (visible: boolean) => {
+function updateCaptureAvailability() {
+  const enabled = hasActiveModel();
+  captureButton.disabled = !enabled;
+}
+
+function toggleModelControls(visible: boolean) {
   modelControlsPanel.style.display = visible ? "block" : "none";
   updateCaptureAvailability();
-};
+}
 
-const updateModelLayer = () => {
+function updateModelLayer() {
   deckScene.updateModel(hasActiveModel() ? modelState : null);
   updateCaptureAvailability();
-};
+}
 
 const resetTransformControls = () => {
   scaleSlider.value = SCALE_RANGE.default.toString();
