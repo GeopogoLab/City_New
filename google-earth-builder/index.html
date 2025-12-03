@@ -214,6 +214,27 @@
         <div class="status-bar glass-panel">
           <span id="status">Ready to load model</span>
           <span id="coordinates"></span>
+          <button id="captureButton" class="ghost-btn capture-btn" disabled>Capture Snapshot</button>
+        </div>
+
+        <div id="screenshotModal" class="modal hidden">
+          <div class="modal__content glass-panel">
+            <div class="modal__header">
+              <h3>Screenshot ready</h3>
+              <button id="closeModal" class="ghost-btn modal__close">✕</button>
+            </div>
+            <div class="modal__body">
+              <div class="modal__preview">
+                <img id="screenshotPreview" alt="Screenshot preview" />
+              </div>
+              <p class="modal__text">Open GeoPogo AI and paste the screenshot into the chat?</p>
+            </div>
+            <div class="modal__actions">
+              <button id="openAndCopy" class="mode-btn active">Copy &amp; Open GeoPogo AI</button>
+              <button id="downloadShot" class="ghost-btn">Download</button>
+              <button id="dismissModal" class="ghost-btn">Cancel</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

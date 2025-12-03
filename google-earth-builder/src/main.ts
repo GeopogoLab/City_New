@@ -34,6 +34,13 @@ const startScreen = document.querySelector<HTMLElement>("#startScreen")!;
 const startScreenMessage = document.querySelector<HTMLParagraphElement>("#startScreenMessage")!;
 const startScreenButton = document.querySelector<HTMLButtonElement>("#startScreenButton")!;
 const startScreenProgress = document.querySelector<HTMLElement>(".start-screen__progress");
+const captureButton = document.querySelector<HTMLButtonElement>("#captureButton")!;
+const screenshotModal = document.querySelector<HTMLDivElement>("#screenshotModal")!;
+const screenshotPreview = document.querySelector<HTMLImageElement>("#screenshotPreview")!;
+const closeModalButton = document.querySelector<HTMLButtonElement>("#closeModal")!;
+const dismissModalButton = document.querySelector<HTMLButtonElement>("#dismissModal")!;
+const openAndCopyButton = document.querySelector<HTMLButtonElement>("#openAndCopy")!;
+const downloadShotButton = document.querySelector<HTMLButtonElement>("#downloadShot")!;
 
 const scaleSlider = document.querySelector<HTMLInputElement>("#scale")!;
 const scaleValue = document.querySelector<HTMLSpanElement>("#scaleValue")!;
@@ -58,6 +65,8 @@ let startScreenLaunchTimer: number | null = null;
 const activePanKeys = new Set<string>();
 let panAnimationFrame: number | null = null;
 let lastPanFrameTs: number | null = null;
+let lastScreenshotUrl: string | null = null;
+let lastScreenshotBlob: Blob | null = null;
 
 const setStartScreenMessage = (message: string) => {
   startScreenMessage.textContent = message;
@@ -181,6 +190,14 @@ const startPanLoopIfNeeded = () => {
   if (panAnimationFrame === null) {
     panAnimationFrame = window.requestAnimationFrame(tickPanLoop);
   }
+};
+
+const revokeLastScreenshot = () => {
+  if (lastScreenshotUrl) {
+    URL.revokeObjectURL(lastScreenshotUrl);
+    lastScreenshotUrl = null;
+  }
+  lastScreenshotBlob = null;
 };
 
 const exportGroupToGlbBlob = (group: Group): Promise<Blob> =>
@@ -315,6 +332,12 @@ const deckScene = new DeckScene({
     },
   },
 });
+updateCaptureAvailability();
+
+const updateCaptureAvailability = () => {
+  const enabled = hasActiveModel();
+  captureButton.disabled = !enabled;
+};
 
 deckCanvas.addEventListener("pointerdown", (event) => {
   if (event.button === 2) {
@@ -335,6 +358,14 @@ deckCanvas.addEventListener("contextmenu", (event) => {
   event.preventDefault();
 });
 
+const closeScreenshotModal = () => {
+  screenshotModal.classList.add("hidden");
+};
+
+const openScreenshotModal = () => {
+  screenshotModal.classList.remove("hidden");
+};
+
 const setStatus = (message: string) => {
   statusLabel.textContent = message;
   if (!startScreen.classList.contains("start-screen--hidden") && !startScreenReady) {
@@ -348,10 +379,12 @@ const updateCoordinates = (lat: number, lng: number) => {
 
 const toggleModelControls = (visible: boolean) => {
   modelControlsPanel.style.display = visible ? "block" : "none";
+  updateCaptureAvailability();
 };
 
 const updateModelLayer = () => {
   deckScene.updateModel(hasActiveModel() ? modelState : null);
+  updateCaptureAvailability();
 };
 
 const resetTransformControls = () => {
@@ -396,6 +429,33 @@ const commitPositionInputs = () => {
   const lng = clampLongitude(parseCoordinateInput(positionLngInput.value, modelState.position.lng));
   updateModelPosition(lat, lng);
   setStatus("Model coordinates updated.");
+};
+
+const captureCanvasScreenshot = async (): Promise<Blob | null> => {
+  if (!hasActiveModel()) {
+    setStatus("Load a model before capturing.");
+    return null;
+  }
+  try {
+    const blob = await new Promise<Blob | null>((resolve, reject) => {
+      deckCanvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Capture failed"))), "image/png");
+    });
+    return blob;
+  } catch (error) {
+    console.error("Screenshot failed:", error);
+    setStatus("Screenshot blocked (likely due to cross-origin tiles).");
+    return null;
+  }
+};
+
+const handleScreenshot = async () => {
+  const blob = await captureCanvasScreenshot();
+  if (!blob) return;
+  revokeLastScreenshot();
+  lastScreenshotBlob = blob;
+  lastScreenshotUrl = URL.createObjectURL(blob);
+  screenshotPreview.src = lastScreenshotUrl;
+  openScreenshotModal();
 };
 
 const setMode = (mode: typeof activeMode) => {
@@ -893,6 +953,56 @@ positionLngInput.addEventListener("change", () => {
 dropToGroundButton.addEventListener("click", (event) => {
   event.preventDefault();
   void dropModelToTerrain();
+});
+
+captureButton.addEventListener("click", () => {
+  void handleScreenshot();
+});
+
+const ensureScreenshotReady = async () => {
+  if (lastScreenshotUrl && lastScreenshotBlob) return true;
+  await handleScreenshot();
+  return Boolean(lastScreenshotUrl && lastScreenshotBlob);
+};
+
+const openGeoPogoAi = () => {
+  window.open("https://geopogo.com/ai", "_blank", "noopener");
+};
+
+openAndCopyButton.addEventListener("click", async () => {
+  const ready = await ensureScreenshotReady();
+  if (!ready) return;
+  if (lastScreenshotBlob && "clipboard" in navigator && "write" in navigator.clipboard) {
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({ "image/png": lastScreenshotBlob }),
+      ]);
+      setStatus("Screenshot copied. Upload in GeoPogo AI chat.");
+    } catch (error) {
+      console.warn("Clipboard write failed:", error);
+      setStatus("Copy failed. Please paste manually after opening GeoPogo AI.");
+    }
+  } else {
+    setStatus("Clipboard not available. Download or drag the image manually.");
+  }
+  openGeoPogoAi();
+  closeScreenshotModal();
+});
+
+downloadShotButton.addEventListener("click", async () => {
+  const ready = await ensureScreenshotReady();
+  if (!ready || !lastScreenshotUrl) return;
+  const link = document.createElement("a");
+  link.href = lastScreenshotUrl;
+  link.download = "geopogo-screenshot.png";
+  link.click();
+  setStatus("Screenshot downloaded.");
+});
+
+[closeModalButton, dismissModalButton].forEach((btn) => {
+  btn.addEventListener("click", () => {
+    closeScreenshotModal();
+  });
 });
 
 const startModelDrag = async (event: PointerEvent) => {
