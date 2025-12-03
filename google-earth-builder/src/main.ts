@@ -432,8 +432,7 @@ const captureCanvasScreenshot = async (): Promise<Blob | null> => {
     const blob = await new Promise<Blob | null>((resolve, reject) => {
       deckCanvas.toBlob(
         (b) => (b ? resolve(b) : reject(new Error("Capture failed"))),
-        "image/jpeg",
-        0.92
+        "image/png"
       );
     });
     return blob;
@@ -455,12 +454,12 @@ const handleScreenshot = async () => {
   let copied = false;
   if ("clipboard" in navigator && "write" in navigator.clipboard) {
     try {
-      await navigator.clipboard.write([new ClipboardItem({ "image/jpeg": blob })]);
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
       copied = true;
       setStatus("Screenshot copied to clipboard.");
     } catch (error) {
       console.warn("Clipboard write failed:", error);
-      setStatus("Screenshot captured. Clipboard unavailable.");
+      setStatus("Screenshot captured. Clipboard unavailable for images (browser policy).");
     }
   } else {
     setStatus("Screenshot captured. Clipboard unavailable.");
