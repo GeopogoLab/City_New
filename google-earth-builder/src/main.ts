@@ -973,12 +973,6 @@ captureButton.addEventListener("click", () => {
   void handleScreenshot();
 });
 
-const ensureScreenshotReady = async () => {
-  if (lastScreenshotUrl && lastScreenshotBlob) return true;
-  await handleScreenshot();
-  return Boolean(lastScreenshotUrl && lastScreenshotBlob);
-};
-
 const openGeoPogoAi = () => {
   window.open("https://geopogo.com/ai", "_blank", "noopener");
 };
