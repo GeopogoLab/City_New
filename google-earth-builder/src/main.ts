@@ -54,6 +54,9 @@ let startScreenReady = false;
 let startScreenHideTimer: number | null = null;
 let startScreenFallbackTimer: number | null = null;
 let startScreenLaunchTimer: number | null = null;
+const activePanKeys = new Set<string>();
+let panAnimationFrame: number | null = null;
+let lastPanFrameTs: number | null = null;
 
 const setStartScreenMessage = (message: string) => {
   startScreenMessage.textContent = message;
@@ -130,6 +133,50 @@ const getKeyboardPanStep = (zoom: number) => {
   const base = 0.0025; // degrees at mid zoom
   const factor = Math.pow(0.6, Math.max(0, zoom - 12));
   return base * factor;
+};
+
+const clearPanLoop = () => {
+  if (panAnimationFrame !== null) {
+    window.cancelAnimationFrame(panAnimationFrame);
+    panAnimationFrame = null;
+  }
+  activePanKeys.clear();
+  lastPanFrameTs = null;
+};
+
+const tickPanLoop = (timestamp: number) => {
+  if (activePanKeys.size === 0) {
+    clearPanLoop();
+    return;
+  }
+  const lastTs = lastPanFrameTs ?? timestamp;
+  const dt = Math.min(32, timestamp - lastTs); // ms cap to avoid jumps
+  lastPanFrameTs = timestamp;
+
+  const step = getKeyboardPanStep(currentViewState.zoom);
+  const speedMultiplier = dt / 16.7; // normalize to ~60fps
+
+  let latDelta = 0;
+  let lngDelta = 0;
+  if (activePanKeys.has("w")) latDelta += step;
+  if (activePanKeys.has("s")) latDelta -= step;
+  if (activePanKeys.has("a")) lngDelta -= step;
+  if (activePanKeys.has("d")) lngDelta += step;
+
+  if (latDelta !== 0 || lngDelta !== 0) {
+    deckScene.setViewState({
+      latitude: clampLatitude(currentViewState.latitude + latDelta * speedMultiplier),
+      longitude: clampLongitude(currentViewState.longitude + lngDelta * speedMultiplier),
+    });
+  }
+
+  panAnimationFrame = window.requestAnimationFrame(tickPanLoop);
+};
+
+const startPanLoopIfNeeded = () => {
+  if (panAnimationFrame === null) {
+    panAnimationFrame = window.requestAnimationFrame(tickPanLoop);
+  }
 };
 
 const exportGroupToGlbBlob = (group: Group): Promise<Blob> =>
@@ -263,6 +310,25 @@ const deckScene = new DeckScene({
       setStatus("Model moved. Adjust altitude if needed.");
     },
   },
+});
+
+deckCanvas.addEventListener("pointerdown", (event) => {
+  if (event.button === 2) {
+    deckScene.setDragMode("rotate");
+    event.preventDefault();
+  } else if (event.button === 0) {
+    deckScene.setDragMode("pan");
+  }
+});
+
+["pointerup", "pointerleave", "pointercancel"].forEach((eventName) => {
+  deckCanvas.addEventListener(eventName, () => {
+    deckScene.resetDragMode();
+  });
+});
+
+deckCanvas.addEventListener("contextmenu", (event) => {
+  event.preventDefault();
 });
 
 const setStatus = (message: string) => {
@@ -742,24 +808,25 @@ startScreenButton.addEventListener("click", () => {
 window.addEventListener("keydown", (event) => {
   if (isTypingTarget(event.target)) return;
   const key = event.key.toLowerCase();
-  const step = getKeyboardPanStep(currentViewState.zoom);
-  let lat = currentViewState.latitude;
-  let lng = currentViewState.longitude;
-
-  if (key === "w") {
-    lat += step;
-  } else if (key === "s") {
-    lat -= step;
-  } else if (key === "a") {
-    lng -= step;
-  } else if (key === "d") {
-    lng += step;
-  } else {
-    return;
+  if (!["w", "a", "s", "d"].includes(key)) return;
+  if (!activePanKeys.has(key)) {
+    activePanKeys.add(key);
+    startPanLoopIfNeeded();
   }
-
   event.preventDefault();
-  deckScene.setViewState({ latitude: clampLatitude(lat), longitude: clampLongitude(lng) });
+});
+
+window.addEventListener("keyup", (event) => {
+  const key = event.key.toLowerCase();
+  if (!["w", "a", "s", "d"].includes(key)) return;
+  activePanKeys.delete(key);
+  if (activePanKeys.size === 0) {
+    clearPanLoop();
+  }
+});
+
+window.addEventListener("blur", () => {
+  clearPanLoop();
 });
 
 viewDistanceSlider.addEventListener("input", () => {

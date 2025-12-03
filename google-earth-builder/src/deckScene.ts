@@ -124,6 +124,16 @@ export class DeckScene {
     this.deck?.setProps({ controller: this.controllerConfig });
   }
 
+  setDragMode(mode: ControllerConfig["dragMode"]) {
+    this.controllerConfig = { ...this.controllerConfig, dragMode: mode };
+    this.deck?.setProps({ controller: this.controllerConfig });
+  }
+
+  resetDragMode() {
+    this.controllerConfig = this.createControllerConfig(this.cameraMode);
+    this.deck?.setProps({ controller: this.controllerConfig });
+  }
+
   private createPhotorealisticLayer(apiKey: string) {
     return new Tile3DLayer({
       id: PHOTOREALISTIC_LAYER_ID,
