@@ -88,6 +88,15 @@ body {
   transform: scale(1.06);
 }
 
+.start-screen--launching {
+  pointer-events: none;
+}
+
+.start-screen--launching .start-screen__background img {
+  transform: scale(1.1);
+  filter: brightness(1.08);
+}
+
 .start-screen__gradient {
   position: absolute;
   inset: 0;
@@ -184,6 +193,11 @@ body {
   filter: saturate(1.05);
 }
 
+.start-screen--launching .start-screen__button {
+  transform: translateY(-1px) scale(1.015);
+  box-shadow: 0 18px 52px rgba(249, 115, 22, 0.55);
+}
+
 .start-screen__button:active:not(:disabled) {
   transform: translateY(0);
 }
@@ -209,6 +223,10 @@ body {
   animation: start-screen-progress 2s ease-in-out infinite;
 }
 
+.start-screen--launching .start-screen__progress-bar {
+  animation: start-screen-launch 0.9s ease-in-out infinite;
+}
+
 .start-screen--ready .start-screen__progress-bar {
   animation-play-state: paused;
   width: 100%;
@@ -223,6 +241,15 @@ body {
 }
 
 @keyframes start-screen-progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(200%);
+  }
+}
+
+@keyframes start-screen-launch {
   0% {
     transform: translateX(-100%);
   }

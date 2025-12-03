@@ -53,6 +53,7 @@ const mapboxAccessToken = getMapboxAccessToken();
 let startScreenReady = false;
 let startScreenHideTimer: number | null = null;
 let startScreenFallbackTimer: number | null = null;
+let startScreenLaunchTimer: number | null = null;
 
 const setStartScreenMessage = (message: string) => {
   startScreenMessage.textContent = message;
@@ -93,6 +94,19 @@ const hideStartScreen = () => {
   startScreenHideTimer = window.setTimeout(() => {
     startScreen.style.display = "none";
   }, 700);
+};
+
+const launchIntoApp = (message = "Launching experience...") => {
+  if (startScreenLaunchTimer !== null) return;
+  startScreen.classList.remove("start-screen--ready");
+  startScreen.classList.add("start-screen--launching");
+  startScreenButton.disabled = true;
+  startScreenButton.textContent = "Starting...";
+  setStartScreenMessage(message);
+  startScreenLaunchTimer = window.setTimeout(() => {
+    hideStartScreen();
+    startScreenLaunchTimer = null;
+  }, 900);
 };
 
 const clampValue = (value: string | number | null): number => {
@@ -722,7 +736,7 @@ const bootScene = () => {
 
 startScreenButton.addEventListener("click", () => {
   if (!startScreenReady) return;
-  hideStartScreen();
+  launchIntoApp();
 });
 
 window.addEventListener("keydown", (event) => {
