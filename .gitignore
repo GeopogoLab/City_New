@@ -2,3 +2,14 @@
 agents.md
 .gemini/
 Screenshot*.png
+
+# IDE state
+/.shelf/
+/workspace.xml
+
+# Editor HTTP client requests
+/httpRequests/
+
+# Datasource local storage
+/dataSources/
+/dataSources.local
