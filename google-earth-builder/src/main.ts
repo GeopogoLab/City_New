@@ -427,13 +427,13 @@ const commitPositionInputs = () => {
 };
 
 const captureCanvasScreenshot = async (): Promise<Blob | null> => {
-  if (!hasActiveModel()) {
-    setStatus("Load a model before capturing.");
-    return null;
-  }
   try {
     const blob = await new Promise<Blob | null>((resolve, reject) => {
-      deckCanvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Capture failed"))), "image/png");
+      deckCanvas.toBlob(
+        (b) => (b ? resolve(b) : reject(new Error("Capture failed"))),
+        "image/jpeg",
+        0.92
+      );
     });
     return blob;
   } catch (error) {
@@ -449,8 +449,29 @@ const handleScreenshot = async () => {
   revokeLastScreenshot();
   lastScreenshotBlob = blob;
   lastScreenshotUrl = URL.createObjectURL(blob);
-  screenshotPreview.src = lastScreenshotUrl;
-  openScreenshotModal();
+
+  let copied = false;
+  if ("clipboard" in navigator && "write" in navigator.clipboard) {
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ "image/jpeg": blob })]);
+      copied = true;
+      setStatus("Screenshot copied to clipboard.");
+    } catch (error) {
+      console.warn("Clipboard write failed:", error);
+      setStatus("Screenshot captured. Clipboard not available.");
+    }
+  } else {
+    setStatus("Screenshot captured. Clipboard not available.");
+  }
+
+  const shouldOpen = window.confirm(
+    copied
+      ? "Screenshot copied. Open GeoPogo AI to generate video?"
+      : "Screenshot captured. Open GeoPogo AI to upload manually?"
+  );
+  if (shouldOpen) {
+    window.open("https://geopogo.com/ai", "_blank", "noopener");
+  }
 };
 
 const setMode = (mode: typeof activeMode) => {
@@ -964,34 +985,13 @@ const openGeoPogoAi = () => {
   window.open("https://geopogo.com/ai", "_blank", "noopener");
 };
 
-openAndCopyButton.addEventListener("click", async () => {
-  const ready = await ensureScreenshotReady();
-  if (!ready) return;
-  if (lastScreenshotBlob && "clipboard" in navigator && "write" in navigator.clipboard) {
-    try {
-      await navigator.clipboard.write([
-        new ClipboardItem({ "image/png": lastScreenshotBlob }),
-      ]);
-      setStatus("Screenshot copied. Upload in GeoPogo AI chat.");
-    } catch (error) {
-      console.warn("Clipboard write failed:", error);
-      setStatus("Copy failed. Please paste manually after opening GeoPogo AI.");
-    }
-  } else {
-    setStatus("Clipboard not available. Download or drag the image manually.");
-  }
-  openGeoPogoAi();
-  closeScreenshotModal();
+openAndCopyButton.addEventListener("click", () => {
+  const shouldOpen = window.confirm("Open GeoPogo AI?");
+  if (shouldOpen) openGeoPogoAi();
 });
 
-downloadShotButton.addEventListener("click", async () => {
-  const ready = await ensureScreenshotReady();
-  if (!ready || !lastScreenshotUrl) return;
-  const link = document.createElement("a");
-  link.href = lastScreenshotUrl;
-  link.download = "geopogo-screenshot.png";
-  link.click();
-  setStatus("Screenshot downloaded.");
+downloadShotButton.addEventListener("click", () => {
+  setStatus("Use the main Screenshot button to capture and copy.");
 });
 
 [closeModalButton, dismissModalButton].forEach((btn) => {
