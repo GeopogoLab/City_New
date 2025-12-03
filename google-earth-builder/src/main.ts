@@ -330,11 +330,6 @@ const deckScene = new DeckScene({
 });
 updateCaptureAvailability();
 
-const updateCaptureAvailability = () => {
-  const enabled = hasActiveModel();
-  captureButton.disabled = !enabled;
-};
-
 deckCanvas.addEventListener("pointerdown", (event) => {
   if (event.button === 2) {
     deckScene.setDragMode("rotate");
