@@ -36,6 +36,7 @@ const startScreenButton = document.querySelector<HTMLButtonElement>("#startScree
 const captureButton = document.querySelector<HTMLButtonElement>("#captureButton")!;
 const screenshotModal = document.querySelector<HTMLDivElement>("#screenshotModal")!;
 const screenshotPreview = document.querySelector<HTMLImageElement>("#screenshotPreview")!;
+const screenshotMessage = document.querySelector<HTMLParagraphElement>("#screenshotMessage")!;
 const closeModalButton = document.querySelector<HTMLButtonElement>("#closeModal")!;
 const dismissModalButton = document.querySelector<HTMLButtonElement>("#dismissModal")!;
 const openAndCopyButton = document.querySelector<HTMLButtonElement>("#openAndCopy")!;
@@ -449,6 +450,7 @@ const handleScreenshot = async () => {
   revokeLastScreenshot();
   lastScreenshotBlob = blob;
   lastScreenshotUrl = URL.createObjectURL(blob);
+  screenshotPreview.src = lastScreenshotUrl;
 
   let copied = false;
   if ("clipboard" in navigator && "write" in navigator.clipboard) {
@@ -458,20 +460,16 @@ const handleScreenshot = async () => {
       setStatus("Screenshot copied to clipboard.");
     } catch (error) {
       console.warn("Clipboard write failed:", error);
-      setStatus("Screenshot captured. Clipboard not available.");
+      setStatus("Screenshot captured. Clipboard unavailable.");
     }
   } else {
-    setStatus("Screenshot captured. Clipboard not available.");
+    setStatus("Screenshot captured. Clipboard unavailable.");
   }
 
-  const shouldOpen = window.confirm(
-    copied
-      ? "Screenshot copied. Open GeoPogo AI to generate video?"
-      : "Screenshot captured. Open GeoPogo AI to upload manually?"
-  );
-  if (shouldOpen) {
-    window.open("https://geopogo.com/ai", "_blank", "noopener");
-  }
+  screenshotMessage.textContent = copied
+    ? "Screenshot copied. What do you want to do next?"
+    : "Screenshot captured. Clipboard unavailable—choose next action.";
+  openScreenshotModal();
 };
 
 const setMode = (mode: typeof activeMode) => {
@@ -986,12 +984,20 @@ const openGeoPogoAi = () => {
 };
 
 openAndCopyButton.addEventListener("click", () => {
-  const shouldOpen = window.confirm("Open GeoPogo AI?");
-  if (shouldOpen) openGeoPogoAi();
+  openGeoPogoAi();
+  closeScreenshotModal();
 });
 
 downloadShotButton.addEventListener("click", () => {
-  setStatus("Use the main Screenshot button to capture and copy.");
+  if (!lastScreenshotBlob || !lastScreenshotUrl) {
+    setStatus("Capture a screenshot first.");
+    return;
+  }
+  const link = document.createElement("a");
+  link.href = lastScreenshotUrl;
+  link.download = "geopogo-screenshot.jpg";
+  link.click();
+  setStatus("Screenshot downloaded.");
 });
 
 [closeModalButton, dismissModalButton].forEach((btn) => {
