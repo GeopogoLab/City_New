@@ -80,14 +80,11 @@ const markStartScreenReady = (message: string) => {
   startScreen.classList.add("start-screen--ready");
   startScreenButton.disabled = false;
   startScreenButton.textContent = "Start";
-  setStartScreenMessage(message);
+  setStartScreenMessage(`${message} Click Start to enter.`);
   if (startScreenFallbackTimer !== null) {
     window.clearTimeout(startScreenFallbackTimer);
     startScreenFallbackTimer = null;
   }
-  startScreenHideTimer = window.setTimeout(() => {
-    hideStartScreen();
-  }, 900);
 };
 
 const hideStartScreen = () => {
@@ -150,8 +147,8 @@ const createScenegraphBlob = async (group: Group): Promise<Blob> => {
 
 const updateViewDistanceDisplay = (zoom: number) => {
   const clamped = clampZoom(zoom);
-  viewDistanceValue.textContent = clamped.toFixed(0);
-  const sliderValue = clamped.toString();
+  viewDistanceValue.textContent = clamped.toFixed(1);
+  const sliderValue = clamped.toFixed(1);
   if (viewDistanceSlider.value !== sliderValue) {
     viewDistanceSlider.value = sliderValue;
   }
@@ -176,6 +173,7 @@ const ensureDeckCanvas = (container: HTMLElement): HTMLCanvasElement => {
 const initialZoom = clampZoom(clampValue(viewDistanceSlider.value));
 viewDistanceSlider.min = VIEW_DISTANCE_RANGE.min.toString();
 viewDistanceSlider.max = VIEW_DISTANCE_RANGE.max.toString();
+viewDistanceSlider.step = "0.1";
 viewDistanceSlider.value = initialZoom.toString();
 updateViewDistanceDisplay(initialZoom);
 scaleSlider.min = SCALE_RANGE.min.toString();
