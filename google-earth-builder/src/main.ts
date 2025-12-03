@@ -369,8 +369,7 @@ function updateCoordinates(lat: number, lng: number) {
 }
 
 function updateCaptureAvailability() {
-  const enabled = hasActiveModel();
-  captureButton.disabled = !enabled;
+  captureButton.disabled = false;
 }
 
 function toggleModelControls(visible: boolean) {
