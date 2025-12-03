@@ -208,11 +208,16 @@ body {
 }
 
 .start-screen__progress {
+  display: none;
   height: 6px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.12);
   overflow: hidden;
   position: relative;
+}
+
+.start-screen--launching .start-screen__progress {
+  display: block;
 }
 
 .start-screen__progress-bar {
