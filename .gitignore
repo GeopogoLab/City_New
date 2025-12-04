@@ -1,2 +1,16 @@
 .DS_Store
 agents.md
+.gemini/
+Screenshot*.png
+/.idea/
+
+# IDE state
+/.shelf/
+/workspace.xml
+
+# Editor HTTP client requests
+/httpRequests/
+
+# Datasource local storage
+/dataSources/
+/dataSources.local
