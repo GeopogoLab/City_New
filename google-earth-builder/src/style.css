@@ -655,6 +655,7 @@ body {
 .slider-group input[type="range"] {
   width: 100%;
   margin-top: 10px;
+  accent-color: var(--accent-orange);
 }
 
 .control-actions {
