@@ -15,7 +15,12 @@ import {
 import { DeckScene } from "./deckScene";
 import { clampZoom, createInitialViewState, createModelState } from "./state";
 import { VIEW_DISTANCE_RANGE, SCALE_RANGE } from "./constants";
-import { getGoogleMapsApiKey, getMapboxAccessToken, shouldAutoCenterOnTileset } from "./env";
+import {
+  getElevationApiKey,
+  getGoogleMapsApiKey,
+  getMapboxAccessToken,
+  shouldAutoCenterOnTileset,
+} from "./env";
 
 const mapDiv = document.querySelector<HTMLDivElement>("#map")!;
 const fileInput = document.querySelector<HTMLInputElement>("#modelInput")!;
@@ -64,6 +69,7 @@ const viewDistanceSlider = document.querySelector<HTMLInputElement>("#viewDistan
 const viewDistanceValue = document.querySelector<HTMLSpanElement>("#viewDistanceValue")!;
 const dropToGroundButton = document.querySelector<HTMLButtonElement>("#dropToGround")!;
 const googleMapsApiKey = getGoogleMapsApiKey();
+const elevationApiKey = getElevationApiKey();
 const mapboxAccessToken = getMapboxAccessToken();
 
 let startScreenReady = false;
@@ -579,10 +585,10 @@ const updateProviderStatus = () => {
 };
 
 const getElevationService = (): Promise<google.maps.ElevationService | null> | null => {
-  if (!googleMapsApiKey) return null;
+  if (!elevationApiKey) return null;
   if (elevationServicePromise) return elevationServicePromise;
   setGoogleOptions({
-    key: googleMapsApiKey,
+    key: elevationApiKey,
     v: "weekly",
   });
   elevationServicePromise = loadGoogleLibrary("elevation")
@@ -627,10 +633,10 @@ setLabelsVisible(labelsVisible);
 updateProviderStatus();
 
 const fetchGroundAltitude = async (lat: number, lng: number): Promise<ElevationResult> => {
-  if (!googleMapsApiKey) {
+  if (!elevationApiKey) {
     return {
       altitude: null,
-      reason: "Google Maps API key missing or Elevation API not enabled",
+      reason: "Elevation API key missing or not enabled",
     };
   }
 
@@ -655,7 +661,7 @@ const fetchGroundAltitude = async (lat: number, lng: number): Promise<ElevationR
 
   try {
     const response = await fetch(
-      `https://maps.googleapis.com/maps/api/elevation/json?locations=${lat},${lng}&key=${googleMapsApiKey}`
+      `https://maps.googleapis.com/maps/api/elevation/json?locations=${lat},${lng}&key=${elevationApiKey}`
     );
     const body = (await response.json().catch(() => null)) as ElevationApiResponse | null;
     const parsed = extractElevationResult(body);
