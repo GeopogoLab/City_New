@@ -62,7 +62,18 @@ let startScreenReady = false;
 let startScreenHideTimer: number | null = null;
 let startScreenFallbackTimer: number | null = null;
 let startScreenLaunchTimer: number | null = null;
-const activePanKeys = new Set<string>();
+type PanDirection = "up" | "down" | "left" | "right";
+const PAN_KEY_MAP: Record<string, PanDirection> = {
+  w: "up",
+  arrowup: "up",
+  s: "down",
+  arrowdown: "down",
+  a: "left",
+  arrowleft: "left",
+  d: "right",
+  arrowright: "right",
+};
+const activePanKeys = new Set<PanDirection>();
 let panAnimationFrame: number | null = null;
 let lastPanFrameTs: number | null = null;
 let lastScreenshotUrl: string | null = null;
@@ -168,10 +179,10 @@ const tickPanLoop = (timestamp: number) => {
 
   let latDelta = 0;
   let lngDelta = 0;
-  if (activePanKeys.has("w")) latDelta += step;
-  if (activePanKeys.has("s")) latDelta -= step;
-  if (activePanKeys.has("a")) lngDelta -= step;
-  if (activePanKeys.has("d")) lngDelta += step;
+  if (activePanKeys.has("up")) latDelta += step;
+  if (activePanKeys.has("down")) latDelta -= step;
+  if (activePanKeys.has("left")) lngDelta -= step;
+  if (activePanKeys.has("right")) lngDelta += step;
 
   if (latDelta !== 0 || lngDelta !== 0) {
     deckScene.setViewState({
@@ -885,21 +896,26 @@ startScreenButton.addEventListener("click", () => {
 window.addEventListener("keydown", (event) => {
   if (isTypingTarget(event.target)) return;
   const key = event.key.toLowerCase();
-  if (!["w", "a", "s", "d"].includes(key)) return;
-  if (!activePanKeys.has(key)) {
-    activePanKeys.add(key);
+  const direction = PAN_KEY_MAP[key];
+  if (!direction) return;
+  if (!activePanKeys.has(direction)) {
+    activePanKeys.add(direction);
     startPanLoopIfNeeded();
   }
   event.preventDefault();
+  event.stopPropagation();
 });
 
 window.addEventListener("keyup", (event) => {
   const key = event.key.toLowerCase();
-  if (!["w", "a", "s", "d"].includes(key)) return;
-  activePanKeys.delete(key);
+  const direction = PAN_KEY_MAP[key];
+  if (!direction) return;
+  activePanKeys.delete(direction);
   if (activePanKeys.size === 0) {
     clearPanLoop();
   }
+  event.preventDefault();
+  event.stopPropagation();
 });
 
 window.addEventListener("blur", () => {

@@ -32,6 +32,8 @@ type ControllerConfig = {
   dragMode: "pan" | "rotate";
   inertia: number;
   keyboard: boolean;
+  scrollZoom: boolean | { smooth?: boolean; speed?: number };
+  touchZoom: boolean;
 };
 
 type DeckSceneCallbacks = {
@@ -89,6 +91,8 @@ export class DeckScene {
       dragMode: mode === "free" ? "rotate" : "pan",
       inertia: mode === "free" ? 0 : 400,
       keyboard: true,
+      scrollZoom: { smooth: true },
+      touchZoom: true,
     };
   }
 
