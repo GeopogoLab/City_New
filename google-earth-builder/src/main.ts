@@ -50,6 +50,14 @@ const pitchSlider = document.querySelector<HTMLInputElement>("#pitch")!;
 const pitchValue = document.querySelector<HTMLSpanElement>("#pitchValue")!;
 const altitudeSlider = document.querySelector<HTMLInputElement>("#altitude")!;
 const altitudeValue = document.querySelector<HTMLSpanElement>("#altitudeValue")!;
+const scaleInput = document.querySelector<HTMLInputElement>("#scaleInput")!;
+const rotationInput = document.querySelector<HTMLInputElement>("#rotationInput")!;
+const pitchInput = document.querySelector<HTMLInputElement>("#pitchInput")!;
+const altitudeInput = document.querySelector<HTMLInputElement>("#altitudeInput")!;
+const scaleValueContainer = scaleValue.closest<HTMLDivElement>(".value-input")!;
+const rotationValueContainer = rotationValue.closest<HTMLDivElement>(".value-input")!;
+const pitchValueContainer = pitchValue.closest<HTMLDivElement>(".value-input")!;
+const altitudeValueContainer = altitudeValue.closest<HTMLDivElement>(".value-input")!;
 const modeButtons = document.querySelectorAll<HTMLButtonElement>("[data-mode]");
 const viewDistanceSlider = document.querySelector<HTMLInputElement>("#viewDistance")!;
 const viewDistanceValue = document.querySelector<HTMLSpanElement>("#viewDistanceValue")!;
@@ -141,6 +149,13 @@ const clampValue = (value: string | number | null): number => {
 
 const clampLatitude = (value: number) => Math.max(-90, Math.min(90, value));
 const clampLongitude = (value: number) => Math.max(-180, Math.min(180, value));
+const clampNumber = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+const focusInput = (input: HTMLInputElement) => {
+  window.requestAnimationFrame(() => {
+    input.focus();
+    input.select();
+  });
+};
 
 const isTypingTarget = (target: EventTarget | null) => {
   if (!(target instanceof HTMLElement)) return false;
@@ -399,17 +414,61 @@ function updateModelLayer() {
 const resetTransformControls = () => {
   scaleSlider.value = SCALE_RANGE.default.toString();
   scaleValue.textContent = `${SCALE_RANGE.default.toFixed(2)}x`;
+  scaleInput.value = SCALE_RANGE.default.toFixed(2);
   rotationSlider.value = "0";
   rotationValue.textContent = "0°";
+  rotationInput.value = "0";
   pitchSlider.value = "0";
   pitchValue.textContent = "0°";
+  pitchInput.value = "0";
   altitudeSlider.value = "0";
   altitudeValue.textContent = formatAltitude(0);
+  altitudeInput.value = "0";
 };
 
 const syncAltitudeControls = () => {
   altitudeSlider.value = modelState.position.altitude.toFixed(0);
   altitudeValue.textContent = formatAltitude(modelState.position.altitude);
+  altitudeInput.value = modelState.position.altitude.toFixed(0);
+};
+
+type InlineEditConfig = {
+  container: HTMLDivElement;
+  display: HTMLElement;
+  input: HTMLInputElement;
+  onCommit: () => void;
+};
+
+const bindInlineNumberEdit = ({ container, display, input, onCommit }: InlineEditConfig) => {
+  const startEditing = () => {
+    if (!hasActiveModel()) {
+      setStatus("Load a model before editing.");
+      return;
+    }
+    container.classList.add("editing");
+    focusInput(input);
+  };
+
+  const commit = () => {
+    container.classList.remove("editing");
+    onCommit();
+  };
+
+  const cancel = () => {
+    container.classList.remove("editing");
+  };
+
+  display.addEventListener("click", startEditing);
+  input.addEventListener("blur", () => commit());
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      commit();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      cancel();
+    }
+  });
 };
 
 const syncPositionInputs = () => {
@@ -926,6 +985,21 @@ scaleSlider.addEventListener("input", () => {
   }
   modelState.transform.scale = modelState.baseScale * multiplier;
   scaleValue.textContent = `${multiplier.toFixed(2)}x`;
+  scaleInput.value = multiplier.toFixed(2);
+  updateModelLayer();
+});
+
+scaleInput.addEventListener("change", () => {
+  if (!hasActiveModel()) {
+    scaleInput.value = SCALE_RANGE.default.toFixed(2);
+    return;
+  }
+  const raw = Number(scaleInput.value);
+  const multiplier = clampNumber(raw, SCALE_RANGE.min, SCALE_RANGE.max);
+  scaleInput.value = multiplier.toFixed(2);
+  scaleSlider.value = multiplier.toString();
+  modelState.transform.scale = modelState.baseScale * multiplier;
+  scaleValue.textContent = `${multiplier.toFixed(2)}x`;
   updateModelLayer();
 });
 
@@ -934,6 +1008,7 @@ rotationSlider.addEventListener("input", () => {
   const rotation = parseFloat(rotationSlider.value);
   modelState.transform.rotation = rotation;
   rotationValue.textContent = `${Math.round(rotation)}°`;
+  rotationInput.value = Math.round(rotation).toString();
   updateModelLayer();
 });
 
@@ -942,6 +1017,7 @@ pitchSlider.addEventListener("input", () => {
   const pitch = parseFloat(pitchSlider.value);
   modelState.transform.pitch = pitch;
   pitchValue.textContent = `${Math.round(pitch)}°`;
+  pitchInput.value = Math.round(pitch).toString();
   updateModelLayer();
 });
 
@@ -949,7 +1025,78 @@ altitudeSlider.addEventListener("input", () => {
   if (!hasActiveModel()) return;
   modelState.position.altitude = Number(altitudeSlider.value);
   altitudeValue.textContent = formatAltitude(modelState.position.altitude);
+  altitudeInput.value = modelState.position.altitude.toFixed(0);
   updateModelLayer();
+});
+
+rotationInput.addEventListener("change", () => {
+  if (!hasActiveModel()) {
+    rotationInput.value = "0";
+    return;
+  }
+  const raw = Number(rotationInput.value);
+  const rotation = clampNumber(Number.isFinite(raw) ? raw : 0, 0, 360);
+  rotationInput.value = Math.round(rotation).toString();
+  rotationSlider.value = rotation.toString();
+  modelState.transform.rotation = rotation;
+  rotationValue.textContent = `${Math.round(rotation)}°`;
+  updateModelLayer();
+});
+
+pitchInput.addEventListener("change", () => {
+  if (!hasActiveModel()) {
+    pitchInput.value = "0";
+    return;
+  }
+  const raw = Number(pitchInput.value);
+  const pitch = clampNumber(Number.isFinite(raw) ? raw : 0, -90, 90);
+  pitchInput.value = Math.round(pitch).toString();
+  pitchSlider.value = pitch.toString();
+  modelState.transform.pitch = pitch;
+  pitchValue.textContent = `${Math.round(pitch)}°`;
+  updateModelLayer();
+});
+
+altitudeInput.addEventListener("change", () => {
+  if (!hasActiveModel()) {
+    altitudeInput.value = "0";
+    return;
+  }
+  const raw = Number(altitudeInput.value);
+  const altitude = clampNumber(Number.isFinite(raw) ? raw : 0, Number(altitudeSlider.min), Number(altitudeSlider.max));
+  altitudeInput.value = altitude.toFixed(0);
+  altitudeSlider.value = altitude.toString();
+  modelState.position.altitude = altitude;
+  altitudeValue.textContent = formatAltitude(modelState.position.altitude);
+  updateModelLayer();
+});
+
+bindInlineNumberEdit({
+  container: scaleValueContainer,
+  display: scaleValue,
+  input: scaleInput,
+  onCommit: () => scaleInput.dispatchEvent(new Event("change")),
+});
+
+bindInlineNumberEdit({
+  container: rotationValueContainer,
+  display: rotationValue,
+  input: rotationInput,
+  onCommit: () => rotationInput.dispatchEvent(new Event("change")),
+});
+
+bindInlineNumberEdit({
+  container: pitchValueContainer,
+  display: pitchValue,
+  input: pitchInput,
+  onCommit: () => pitchInput.dispatchEvent(new Event("change")),
+});
+
+bindInlineNumberEdit({
+  container: altitudeValueContainer,
+  display: altitudeValue,
+  input: altitudeInput,
+  onCommit: () => altitudeInput.dispatchEvent(new Event("change")),
 });
 
 positionLatInput.addEventListener("change", () => {
