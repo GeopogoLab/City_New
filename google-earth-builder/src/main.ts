@@ -343,7 +343,10 @@ const deckScene = new DeckScene({
 updateCaptureAvailability();
 
 deckCanvas.addEventListener("pointerdown", (event) => {
-  if (event.button === 2) {
+  if (event.ctrlKey) {
+    deckScene.setDragMode("rotate");
+    event.preventDefault();
+  } else if (event.button === 2) {
     deckScene.setDragMode("rotate");
     event.preventDefault();
   } else if (event.button === 0) {
