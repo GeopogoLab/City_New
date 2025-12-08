@@ -582,8 +582,8 @@ const getElevationService = (): Promise<google.maps.ElevationService | null> | n
   if (!googleMapsApiKey) return null;
   if (elevationServicePromise) return elevationServicePromise;
   setGoogleOptions({
-    apiKey: googleMapsApiKey,
-    version: "weekly",
+    key: googleMapsApiKey,
+    v: "weekly",
   });
   elevationServicePromise = loadGoogleLibrary("elevation")
     .then((lib) => {
