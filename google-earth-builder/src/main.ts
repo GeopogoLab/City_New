@@ -1,5 +1,4 @@
 import "./style.css";
-import { importLibrary as loadGoogleLibrary, setOptions as setGoogleOptions } from "@googlemaps/js-api-loader";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
@@ -280,7 +279,6 @@ const gltfExporter = new GLTFExporter();
 const modelState = createModelState();
 let activeMode: "translate" | "rotate" | "scale" = "translate";
 let isDraggingModel = false;
-let elevationServicePromise: Promise<google.maps.ElevationService | null> | null = null;
 
 const hasActiveModel = () => Boolean(modelState.scenegraphSource);
 
@@ -520,22 +518,7 @@ const updateProviderStatus = () => {
 };
 
 const getElevationService = (): Promise<google.maps.ElevationService | null> | null => {
-  if (!googleMapsApiKey) return null;
-  if (elevationServicePromise) return elevationServicePromise;
-  setGoogleOptions({
-    apiKey: googleMapsApiKey,
-    version: "weekly",
-  });
-  elevationServicePromise = loadGoogleLibrary("elevation")
-    .then((lib) => {
-      if (!lib?.ElevationService) return null;
-      return new lib.ElevationService();
-    })
-    .catch((error) => {
-      console.error("Failed to init ElevationService:", error);
-      return null;
-    });
-  return elevationServicePromise;
+  return null;
 };
 
 type SupportedModelFormat = "gltf" | "glb" | "obj";
@@ -596,12 +579,7 @@ const fetchGroundAltitude = async (lat: number, lng: number): Promise<ElevationR
 
   try {
     const response = await fetch(
-      `https://maps.googleapis.com/maps/api/elevation/json?locations=${lat},${lng}&key=${googleMapsApiKey}`,
-      {
-        headers: {
-          "X-GOOG-API-KEY": googleMapsApiKey,
-        },
-      }
+      `https://maps.googleapis.com/maps/api/elevation/json?locations=${lat},${lng}&key=${googleMapsApiKey}`
     );
     const body = (await response.json().catch(() => null)) as ElevationApiResponse | null;
     const parsed = extractElevationResult(body);
