@@ -279,7 +279,6 @@ const gltfExporter = new GLTFExporter();
 const modelState = createModelState();
 let activeMode: "translate" | "rotate" | "scale" = "translate";
 let isDraggingModel = false;
-let isPlacingModel = false;
 
 const hasActiveModel = () => Boolean(modelState.scenegraphSource);
 
@@ -612,7 +611,7 @@ const fetchGroundAltitude = async (lat: number, lng: number): Promise<ElevationR
 };
 
 const dropModelToTerrain = async () => {
-  if (!hasActiveModel() || isPlacingModel) return;
+  if (!hasActiveModel()) return;
   dropToGroundButton.disabled = true;
   const previousLabel = dropToGroundButton.textContent;
   dropToGroundButton.textContent = "Snapping...";
@@ -637,21 +636,9 @@ const dropModelToTerrain = async () => {
   }
 };
 
-const finalizeInitialPlacement = (lat: number, lng: number) => {
-  if (!hasActiveModel()) return;
-  isPlacingModel = false;
-  updateModelPosition(lat, lng);
-  setStatus("Model placed. Dropping to terrain...");
-  void dropModelToTerrain();
-};
-
 const handleMapPlacement = (latitude: number, longitude: number) => {
   if (!hasActiveModel()) {
     setStatus("Load a model before placing it on the map.");
-    return;
-  }
-  if (isPlacingModel) {
-    finalizeInitialPlacement(latitude, longitude);
     return;
   }
   if (activeMode !== "translate") {
@@ -683,11 +670,11 @@ const placeModel = async (model: Group, format: SupportedModelFormat) => {
   resetTransformControls();
   syncAltitudeControls();
   syncPositionInputs();
-  isPlacingModel = true;
   setMode("translate");
 
   updateModelLayer();
-  setStatus(`${format.toUpperCase()} model loaded. Move cursor, then click to place on the map.`);
+  setStatus(`${format.toUpperCase()} model loaded. Dropping to terrain...`);
+  void dropModelToTerrain();
 };
 
 type Coordinates = { lat: number; lng: number };
@@ -1023,7 +1010,7 @@ downloadShotButton.addEventListener("click", () => {
 });
 
 const startModelDrag = async (event: PointerEvent) => {
-  if (!hasActiveModel() || activeMode !== "translate" || isPlacingModel) return;
+  if (!hasActiveModel() || activeMode !== "translate") return;
   const hit = await deckScene.pickModel({ x: event.clientX, y: event.clientY });
   if (!hit) return;
   isDraggingModel = true;
@@ -1058,12 +1045,6 @@ deckCanvas.addEventListener("pointerdown", (event) => {
 });
 
 deckCanvas.addEventListener("pointermove", (event) => {
-  if (isPlacingModel && hasActiveModel()) {
-    const position = deckScene.unproject({ x: event.clientX, y: event.clientY });
-    if (position) {
-      updateModelPosition(position.latitude, position.longitude);
-    }
-  }
   continueModelDrag(event);
 });
 
