@@ -1,5 +1,5 @@
 import "./style.css";
-import { Loader as GoogleMapsLoader } from "@googlemaps/js-api-loader";
+import { importLibrary as loadGoogleLibrary, setOptions as setGoogleOptions } from "@googlemaps/js-api-loader";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
@@ -522,15 +522,14 @@ const updateProviderStatus = () => {
 const getElevationService = (): Promise<google.maps.ElevationService | null> | null => {
   if (!googleMapsApiKey) return null;
   if (elevationServicePromise) return elevationServicePromise;
-  elevationServicePromise = new GoogleMapsLoader({
+  setGoogleOptions({
     apiKey: googleMapsApiKey,
     version: "weekly",
-    libraries: [],
-  })
-    .load()
-    .then(() => {
-      if (!("google" in window) || !window.google?.maps) return null;
-      return new window.google.maps.ElevationService();
+  });
+  elevationServicePromise = loadGoogleLibrary("elevation")
+    .then((lib) => {
+      if (!lib?.ElevationService) return null;
+      return new lib.ElevationService();
     })
     .catch((error) => {
       console.error("Failed to init ElevationService:", error);
