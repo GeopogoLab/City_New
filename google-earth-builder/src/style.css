@@ -297,6 +297,10 @@ body {
   pointer-events: auto;
 }
 
+.floating-panels {
+  pointer-events: none;
+}
+
 .overlay input,
 .overlay textarea,
 .overlay select,
@@ -430,6 +434,7 @@ body {
   gap: 24px;
   padding: 0 24px;
   flex-wrap: wrap;
+  pointer-events: none;
 }
 
 .panel-stack,
@@ -451,6 +456,7 @@ body {
   padding: 20px;
   border-radius: var(--radius-lg);
   animation: slideIn 0.3s ease-out;
+  pointer-events: auto;
 }
 
 .panel-header {
