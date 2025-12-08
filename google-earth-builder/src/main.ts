@@ -11,7 +11,7 @@ import {
   type ElevationApiResponse,
   type ElevationResult,
 } from "./utils";
-import { DeckScene, type CameraMode } from "./deckScene";
+import { DeckScene } from "./deckScene";
 import { clampZoom, createInitialViewState, createModelState } from "./state";
 import { VIEW_DISTANCE_RANGE, SCALE_RANGE } from "./constants";
 import { getGoogleMapsApiKey, getMapboxAccessToken, shouldAutoCenterOnTileset } from "./env";
@@ -54,7 +54,6 @@ const modeButtons = document.querySelectorAll<HTMLButtonElement>("[data-mode]");
 const viewDistanceSlider = document.querySelector<HTMLInputElement>("#viewDistance")!;
 const viewDistanceValue = document.querySelector<HTMLSpanElement>("#viewDistanceValue")!;
 const dropToGroundButton = document.querySelector<HTMLButtonElement>("#dropToGround")!;
-const cameraModeButtons = document.querySelectorAll<HTMLButtonElement>("[data-camera]");
 const googleMapsApiKey = getGoogleMapsApiKey();
 const mapboxAccessToken = getMapboxAccessToken();
 
@@ -497,13 +496,6 @@ const setMode = (mode: typeof activeMode) => {
   }
 };
 
-let cameraMode: CameraMode = "orbit";
-const setCameraMode = (mode: CameraMode) => {
-  cameraMode = mode;
-  cameraModeButtons.forEach((btn) => btn.classList.toggle("active", btn.dataset.camera === mode));
-  deckScene.setCameraMode(mode);
-};
-
 let labelsVisible = true;
 const setLabelsVisible = (visible: boolean) => {
   labelsVisible = visible;
@@ -555,7 +547,6 @@ const loadModelFromFile = async (file: File, format: SupportedModelFormat): Prom
 
 toggleModelControls(false);
 updateCoordinates(initialViewState.latitude, initialViewState.longitude);
-setCameraMode(cameraMode);
 setLabelsVisible(labelsVisible);
 updateProviderStatus();
 
@@ -1080,14 +1071,6 @@ modeButtons.forEach((btn) =>
     const mode = btn.dataset.mode as typeof activeMode | undefined;
     if (!mode) return;
     setMode(mode);
-  })
-);
-
-cameraModeButtons.forEach((btn) =>
-  btn.addEventListener("click", () => {
-    const mode = btn.dataset.camera as CameraMode | undefined;
-    if (!mode || mode === cameraMode) return;
-    setCameraMode(mode);
   })
 );
 
