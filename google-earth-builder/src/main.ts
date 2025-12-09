@@ -319,7 +319,6 @@ let activeMode: "translate" | "rotate" | "scale" = "translate";
 let isDraggingModel = false;
 let isPlacingModel = false;
 let elevationServicePromise: Promise<google.maps.ElevationService | null> | null = null;
-let isModelSelected = false;
 
 const hasActiveModel = () => Boolean(modelState.scenegraphSource);
 
@@ -435,9 +434,6 @@ function toggleModelControls(visible: boolean) {
 function updateModelLayer() {
   deckScene.updateModel(hasActiveModel() ? modelState : null);
   updateCaptureAvailability();
-  if (!hasActiveModel()) {
-    isModelSelected = false;
-  }
 }
 
 const resetTransformControls = () => {
@@ -749,7 +745,6 @@ const handleMapPlacement = (latitude: number, longitude: number) => {
   }
   if (isPlacingModel) {
     isPlacingModel = false;
-    isModelSelected = true;
     updateModelPosition(latitude, longitude);
     setStatus("Model placed. Dropping to terrain...");
     void dropModelToTerrain();
@@ -787,7 +782,6 @@ const placeModel = async (model: Group, format: SupportedModelFormat) => {
   syncAltitudeControls();
   syncPositionInputs();
   setMode("translate");
-  isModelSelected = true;
 
   updateModelLayer();
   setStatus(`${format.toUpperCase()} model loaded. Move cursor, click to place.`);
@@ -1248,11 +1242,7 @@ downloadShotButton.addEventListener("click", () => {
 const startModelDrag = async (event: PointerEvent) => {
   if (!hasActiveModel() || activeMode !== "translate" || isPlacingModel) return;
   const hit = await deckScene.pickModel({ x: event.clientX, y: event.clientY });
-  if (!hit) {
-    isModelSelected = false;
-    return;
-  }
-  isModelSelected = true;
+  if (!hit) return;
   isDraggingModel = true;
   deckCanvas.setPointerCapture(event.pointerId);
   updateModelPosition(hit.latitude, hit.longitude);
@@ -1316,7 +1306,6 @@ deleteModelButton.addEventListener("click", (event) => {
     lng: currentViewState.longitude,
     altitude: 0,
   };
-  isModelSelected = false;
   toggleModelControls(false);
   resetTransformControls();
   syncAltitudeControls();
