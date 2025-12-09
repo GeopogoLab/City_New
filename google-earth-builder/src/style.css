@@ -144,6 +144,10 @@ body {
   gap: 20px;
 }
 
+.start-screen__body--lower {
+  margin-top: 120px;
+}
+
 .start-screen__eyebrow {
   color: rgba(255, 255, 255, 0.7);
   letter-spacing: 0.16em;
