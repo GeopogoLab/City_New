@@ -827,6 +827,22 @@ body {
 /* Floating model controls */
 #modelControlsPanel {
   display: none;
+  max-height: calc(100vh - 240px);
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+#modelControlsPanel::-webkit-scrollbar {
+  width: 10px;
+}
+
+#modelControlsPanel::-webkit-scrollbar-thumb {
+  background: rgba(249, 115, 22, 0.4);
+  border-radius: 999px;
+}
+
+#modelControlsPanel::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
 }
 
 /* Status bar */
