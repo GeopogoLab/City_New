@@ -698,6 +698,16 @@ body {
   box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.16);
 }
 
+.value-input input[type="number"]::-webkit-outer-spin-button,
+.value-input input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.value-input input[type="number"] {
+  -moz-appearance: textfield;
+}
+
 .control-group input[type="range"],
 .slider-group input[type="range"] {
   appearance: none;

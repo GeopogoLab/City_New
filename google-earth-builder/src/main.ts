@@ -54,15 +54,19 @@ const rotationSlider = document.querySelector<HTMLInputElement>("#rotation")!;
 const rotationValue = document.querySelector<HTMLSpanElement>("#rotationValue")!;
 const pitchSlider = document.querySelector<HTMLInputElement>("#pitch")!;
 const pitchValue = document.querySelector<HTMLSpanElement>("#pitchValue")!;
+const rollSlider = document.querySelector<HTMLInputElement>("#roll")!;
+const rollValue = document.querySelector<HTMLSpanElement>("#rollValue")!;
 const altitudeSlider = document.querySelector<HTMLInputElement>("#altitude")!;
 const altitudeValue = document.querySelector<HTMLSpanElement>("#altitudeValue")!;
 const scaleInput = document.querySelector<HTMLInputElement>("#scaleInput")!;
 const rotationInput = document.querySelector<HTMLInputElement>("#rotationInput")!;
 const pitchInput = document.querySelector<HTMLInputElement>("#pitchInput")!;
+const rollInput = document.querySelector<HTMLInputElement>("#rollInput")!;
 const altitudeInput = document.querySelector<HTMLInputElement>("#altitudeInput")!;
 const scaleValueContainer = scaleValue.closest<HTMLDivElement>(".value-input")!;
 const rotationValueContainer = rotationValue.closest<HTMLDivElement>(".value-input")!;
 const pitchValueContainer = pitchValue.closest<HTMLDivElement>(".value-input")!;
+const rollValueContainer = rollValue.closest<HTMLDivElement>(".value-input")!;
 const altitudeValueContainer = altitudeValue.closest<HTMLDivElement>(".value-input")!;
 const modeButtons = document.querySelectorAll<HTMLButtonElement>("[data-mode]");
 const viewDistanceSlider = document.querySelector<HTMLInputElement>("#viewDistance")!;
@@ -441,6 +445,9 @@ const resetTransformControls = () => {
   pitchSlider.value = "0";
   pitchValue.textContent = "0°";
   pitchInput.value = "0";
+  rollSlider.value = "0";
+  rollValue.textContent = "0°";
+  rollInput.value = "0";
   altitudeSlider.value = "0";
   altitudeValue.textContent = formatAltitude(0);
   altitudeInput.value = "0";
@@ -569,7 +576,7 @@ const setMode = (mode: typeof activeMode) => {
   if (mode === "translate") {
     setStatus("Move mode: click on the map to reposition the model.");
   } else if (mode === "rotate") {
-    setStatus("Rotate mode: use the heading and pitch sliders.");
+    setStatus("Rotate mode: use heading, pitch, and roll controls.");
   } else {
     setStatus("Scale mode: drag the scale slider to resize the model.");
   }
@@ -758,6 +765,7 @@ const placeModel = async (model: Group, format: SupportedModelFormat) => {
   modelState.transform.scale = modelState.baseScale;
   modelState.transform.rotation = 0;
   modelState.transform.pitch = 0;
+  modelState.transform.roll = 0;
   modelState.position = {
     lat: currentViewState.latitude,
     lng: currentViewState.longitude,
@@ -1068,6 +1076,15 @@ pitchSlider.addEventListener("input", () => {
   updateModelLayer();
 });
 
+rollSlider.addEventListener("input", () => {
+  if (!hasActiveModel()) return;
+  const roll = parseFloat(rollSlider.value);
+  modelState.transform.roll = roll;
+  rollValue.textContent = `${Math.round(roll)}°`;
+  rollInput.value = Math.round(roll).toString();
+  updateModelLayer();
+});
+
 altitudeSlider.addEventListener("input", () => {
   if (!hasActiveModel()) return;
   modelState.position.altitude = Number(altitudeSlider.value);
@@ -1104,6 +1121,20 @@ pitchInput.addEventListener("change", () => {
   updateModelLayer();
 });
 
+rollInput.addEventListener("change", () => {
+  if (!hasActiveModel()) {
+    rollInput.value = "0";
+    return;
+  }
+  const raw = Number(rollInput.value);
+  const roll = clampNumber(Number.isFinite(raw) ? raw : 0, -180, 180);
+  rollInput.value = Math.round(roll).toString();
+  rollSlider.value = roll.toString();
+  modelState.transform.roll = roll;
+  rollValue.textContent = `${Math.round(roll)}°`;
+  updateModelLayer();
+});
+
 altitudeInput.addEventListener("change", () => {
   if (!hasActiveModel()) {
     altitudeInput.value = "0";
@@ -1137,6 +1168,13 @@ bindInlineNumberEdit({
   display: pitchValue,
   input: pitchInput,
   onCommit: () => pitchInput.dispatchEvent(new Event("change")),
+});
+
+bindInlineNumberEdit({
+  container: rollValueContainer,
+  display: rollValue,
+  input: rollInput,
+  onCommit: () => rollInput.dispatchEvent(new Event("change")),
 });
 
 bindInlineNumberEdit({

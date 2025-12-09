@@ -230,7 +230,11 @@ export class DeckScene {
             modelState.position.lat,
             modelState.position.altitude,
           ],
-          orientation: [modelState.transform.pitch, 0, modelState.transform.rotation],
+          orientation: [
+            modelState.transform.pitch,
+            modelState.transform.roll ?? 0,
+            modelState.transform.rotation,
+          ],
         },
       ],
       sizeScale: modelState.transform.scale * MODEL_BASE_SIZE,
