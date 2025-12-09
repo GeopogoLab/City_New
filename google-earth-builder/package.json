@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "check:apis": "node scripts/check-apis.mjs",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run"
@@ -23,12 +24,19 @@
   "dependencies": {
     "@deck.gl/core": "^9.2.2",
     "@deck.gl/geo-layers": "^9.2.2",
-    "@deck.gl/mesh-layers": "^9.2.2",
     "@deck.gl/layers": "^9.2.2",
+    "@deck.gl/mesh-layers": "^9.2.2",
     "@googlemaps/js-api-loader": "^2.0.2",
     "@loaders.gl/3d-tiles": "^4.3.4",
     "@types/google.maps": "^3.58.1",
+    "@types/react": "^19.2.6",
+    "@types/react-dom": "^19.2.3",
+    "autoprefixer": "^10.4.22",
     "deck.gl": "^9.2.2",
+    "postcss": "^8.5.6",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tailwindcss": "^4.1.17",
     "three": "^0.181.1"
   }
 }

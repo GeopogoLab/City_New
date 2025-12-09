@@ -7,6 +7,33 @@
     <title>GeoPogo Earth Builder</title>
   </head>
   <body>
+    <div id="startScreen" class="start-screen">
+      <div class="start-screen__background">
+        <img src="https://images.unsplash.com/photo-1501594907352-04cda38ebc29?q=80&w=2000&auto=format&fit=crop" alt="City skyline" />
+        <div class="start-screen__gradient start-screen__gradient--horizontal"></div>
+        <div class="start-screen__gradient start-screen__gradient--vertical"></div>
+      </div>
+
+      <div class="start-screen__content">
+        <main class="start-screen__body start-screen__body--lower">
+          <div class="start-screen__logo">GEOPOGO</div>
+          <h1 class="start-screen__title">CITIES</h1>
+          <p class="start-screen__subtitle">
+            Geopogo Cities AI gives access to 3D city data around the world for you to import your 3D and BIM design models,
+            analyze them on site, and render and animate with the power of the latest AI models.
+          </p>
+
+          <div class="start-screen__actions">
+            <button id="startScreenButton" class="start-screen__button" disabled>Loading map...</button>
+            <div class="start-screen__progress">
+              <span id="startScreenBar" class="start-screen__progress-bar"></span>
+            </div>
+            <p id="startScreenMessage" class="start-screen__status">Preparing photorealistic 3D map...</p>
+          </div>
+        </main>
+      </div>
+    </div>
+
     <div id="app">
       <div id="map"></div>
       <div class="overlay">
@@ -56,18 +83,10 @@
             <div class="section">
               <h4>VIEW DISTANCE</h4>
               <div class="slider-group">
-                <input type="range" id="viewDistance" min="8" max="22" value="15" step="1" />
+                <input type="range" id="viewDistance" min="8" max="22" value="15" step="0.1" />
                 <span class="slider-value" id="viewDistanceValue">15</span>
               </div>
               <p class="hint">Higher values extend the viewing distance</p>
-            </div>
-
-            <div class="section">
-              <h4>CAMERA MODE</h4>
-              <div class="mode-buttons">
-                <button class="mode-btn active" data-camera="orbit">Orbit (RTS)</button>
-                <button class="mode-btn" data-camera="free">Free</button>
-              </div>
             </div>
           </section>
 
@@ -99,7 +118,10 @@
               <div class="control-group">
                 <label>
                   <span>SCALE</span>
-                  <span class="value" id="scaleValue">1.0x</span>
+                  <div class="value-input">
+                    <span class="value" id="scaleValue">1.0x</span>
+                    <input type="number" id="scaleInput" min="0.01" max="3" step="0.01" value="1.00" />
+                  </div>
                 </label>
                 <input type="range" id="scale" min="0.01" max="3" value="1" step="0.01" />
               </div>
@@ -107,7 +129,10 @@
               <div class="control-group">
                 <label>
                   <span>ROTATION (HEADING)</span>
-                  <span class="value" id="rotationValue">0°</span>
+                  <div class="value-input">
+                    <span class="value" id="rotationValue">0°</span>
+                    <input type="number" id="rotationInput" min="0" max="360" step="1" value="0" />
+                  </div>
                 </label>
                 <input type="range" id="rotation" min="0" max="360" value="0" step="1" />
                 <div class="rotation-indicator"></div>
@@ -116,19 +141,37 @@
               <div class="control-group">
                 <label>
                   <span>PITCH (TILT)</span>
-                  <span class="value" id="pitchValue">0°</span>
+                  <div class="value-input">
+                    <span class="value" id="pitchValue">0°</span>
+                    <input type="number" id="pitchInput" min="-180" max="180" step="1" value="0" />
+                  </div>
                 </label>
-                <input type="range" id="pitch" min="-90" max="90" value="0" step="1" />
+                <input type="range" id="pitch" min="-180" max="180" value="0" step="1" />
+              </div>
+
+              <div class="control-group">
+                <label>
+                  <span>ROLL</span>
+                  <div class="value-input">
+                    <span class="value" id="rollValue">0°</span>
+                    <input type="number" id="rollInput" min="-180" max="180" step="1" value="0" />
+                  </div>
+                </label>
+                <input type="range" id="roll" min="-180" max="180" value="0" step="1" />
               </div>
 
               <div class="control-group">
                 <label>
                   <span>ALTITUDE</span>
-                  <span class="value" id="altitudeValue">0m</span>
+                  <div class="value-input">
+                    <span class="value" id="altitudeValue">0m</span>
+                    <input type="number" id="altitudeInput" min="-50" max="500" step="1" value="0" />
+                  </div>
                 </label>
                 <input type="range" id="altitude" min="-50" max="500" value="0" step="1" />
                 <div class="control-actions">
                   <button class="ghost-btn" id="dropToGround">Drop to Terrain</button>
+                  <button class="ghost-btn" id="deleteModel">Delete Model</button>
                 </div>
               </div>
 
@@ -183,6 +226,27 @@
         <div class="status-bar glass-panel">
           <span id="status">Ready to load model</span>
           <span id="coordinates"></span>
+          <button id="captureButton" class="ghost-btn capture-btn">Screenshot</button>
+        </div>
+
+        <div id="screenshotModal" class="modal hidden">
+          <div class="modal__content glass-panel">
+            <div class="modal__header">
+              <h3>Screenshot ready</h3>
+              <button id="closeModal" class="ghost-btn modal__close">✕</button>
+            </div>
+            <div class="modal__body">
+              <div class="modal__preview">
+                <img id="screenshotPreview" alt="Screenshot preview" />
+              </div>
+              <p class="modal__text" id="screenshotMessage">Screenshot ready.</p>
+            </div>
+            <div class="modal__actions">
+              <button id="openAndCopy" class="mode-btn active">Open GeoPogo AI</button>
+              <button id="downloadShot" class="ghost-btn">Download</button>
+              <button id="dismissModal" class="ghost-btn">OK</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

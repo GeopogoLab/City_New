@@ -1,4 +1,5 @@
 import "./style.css";
+import { importLibrary as loadGoogleLibrary, setOptions as setGoogleOptions } from "@googlemaps/js-api-loader";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
@@ -11,10 +12,15 @@ import {
   type ElevationApiResponse,
   type ElevationResult,
 } from "./utils";
-import { DeckScene, type CameraMode } from "./deckScene";
+import { DeckScene } from "./deckScene";
 import { clampZoom, createInitialViewState, createModelState } from "./state";
 import { VIEW_DISTANCE_RANGE, SCALE_RANGE } from "./constants";
-import { getGoogleMapsApiKey, shouldAutoCenterOnTileset } from "./env";
+import {
+  getElevationApiKey,
+  getGoogleMapsApiKey,
+  getMapboxAccessToken,
+  shouldAutoCenterOnTileset,
+} from "./env";
 
 const mapDiv = document.querySelector<HTMLDivElement>("#map")!;
 const fileInput = document.querySelector<HTMLInputElement>("#modelInput")!;
@@ -30,6 +36,17 @@ const providerStatus = document.querySelector<HTMLSpanElement>("#providerStatus"
 const positionLatInput = document.querySelector<HTMLInputElement>("#positionLat")!;
 const positionLngInput = document.querySelector<HTMLInputElement>("#positionLng")!;
 const centerToCameraButton = document.querySelector<HTMLButtonElement>("#centerToCamera")!;
+const startScreen = document.querySelector<HTMLElement>("#startScreen")!;
+const startScreenMessage = document.querySelector<HTMLParagraphElement>("#startScreenMessage")!;
+const startScreenButton = document.querySelector<HTMLButtonElement>("#startScreenButton")!;
+const captureButton = document.querySelector<HTMLButtonElement>("#captureButton")!;
+const screenshotModal = document.querySelector<HTMLDivElement>("#screenshotModal")!;
+const screenshotPreview = document.querySelector<HTMLImageElement>("#screenshotPreview")!;
+const screenshotMessage = document.querySelector<HTMLParagraphElement>("#screenshotMessage")!;
+const closeModalButton = document.querySelector<HTMLButtonElement>("#closeModal")!;
+const dismissModalButton = document.querySelector<HTMLButtonElement>("#dismissModal")!;
+const openAndCopyButton = document.querySelector<HTMLButtonElement>("#openAndCopy")!;
+const downloadShotButton = document.querySelector<HTMLButtonElement>("#downloadShot")!;
 
 const scaleSlider = document.querySelector<HTMLInputElement>("#scale")!;
 const scaleValue = document.querySelector<HTMLSpanElement>("#scaleValue")!;
@@ -37,14 +54,103 @@ const rotationSlider = document.querySelector<HTMLInputElement>("#rotation")!;
 const rotationValue = document.querySelector<HTMLSpanElement>("#rotationValue")!;
 const pitchSlider = document.querySelector<HTMLInputElement>("#pitch")!;
 const pitchValue = document.querySelector<HTMLSpanElement>("#pitchValue")!;
+const rollSlider = document.querySelector<HTMLInputElement>("#roll")!;
+const rollValue = document.querySelector<HTMLSpanElement>("#rollValue")!;
 const altitudeSlider = document.querySelector<HTMLInputElement>("#altitude")!;
 const altitudeValue = document.querySelector<HTMLSpanElement>("#altitudeValue")!;
+const scaleInput = document.querySelector<HTMLInputElement>("#scaleInput")!;
+const rotationInput = document.querySelector<HTMLInputElement>("#rotationInput")!;
+const pitchInput = document.querySelector<HTMLInputElement>("#pitchInput")!;
+const rollInput = document.querySelector<HTMLInputElement>("#rollInput")!;
+const altitudeInput = document.querySelector<HTMLInputElement>("#altitudeInput")!;
+const scaleValueContainer = scaleValue.closest<HTMLDivElement>(".value-input")!;
+const rotationValueContainer = rotationValue.closest<HTMLDivElement>(".value-input")!;
+const pitchValueContainer = pitchValue.closest<HTMLDivElement>(".value-input")!;
+const rollValueContainer = rollValue.closest<HTMLDivElement>(".value-input")!;
+const altitudeValueContainer = altitudeValue.closest<HTMLDivElement>(".value-input")!;
 const modeButtons = document.querySelectorAll<HTMLButtonElement>("[data-mode]");
 const viewDistanceSlider = document.querySelector<HTMLInputElement>("#viewDistance")!;
 const viewDistanceValue = document.querySelector<HTMLSpanElement>("#viewDistanceValue")!;
 const dropToGroundButton = document.querySelector<HTMLButtonElement>("#dropToGround")!;
-const cameraModeButtons = document.querySelectorAll<HTMLButtonElement>("[data-camera]");
+const deleteModelButton = document.querySelector<HTMLButtonElement>("#deleteModel")!;
 const googleMapsApiKey = getGoogleMapsApiKey();
+const elevationApiKey = getElevationApiKey();
+const mapboxAccessToken = getMapboxAccessToken();
+
+let startScreenReady = false;
+let startScreenHideTimer: number | null = null;
+let startScreenFallbackTimer: number | null = null;
+let startScreenLaunchTimer: number | null = null;
+type PanDirection = "up" | "down" | "left" | "right";
+const PAN_KEY_MAP: Record<string, PanDirection> = {
+  w: "up",
+  arrowup: "up",
+  s: "down",
+  arrowdown: "down",
+  a: "left",
+  arrowleft: "left",
+  d: "right",
+  arrowright: "right",
+};
+const activePanKeys = new Set<PanDirection>();
+let panAnimationFrame: number | null = null;
+let lastPanFrameTs: number | null = null;
+let lastScreenshotUrl: string | null = null;
+let lastScreenshotBlob: Blob | null = null;
+
+const setStartScreenMessage = (message: string) => {
+  startScreenMessage.textContent = message;
+};
+
+const showStartScreenLoading = (message: string) => {
+  startScreenReady = false;
+  startScreen.classList.remove("start-screen--ready", "start-screen--hidden");
+  startScreenButton.disabled = true;
+  startScreenButton.textContent = "Loading map...";
+  setStartScreenMessage(message);
+  if (startScreenHideTimer !== null) {
+    window.clearTimeout(startScreenHideTimer);
+    startScreenHideTimer = null;
+  }
+  if (startScreenFallbackTimer !== null) {
+    window.clearTimeout(startScreenFallbackTimer);
+    startScreenFallbackTimer = null;
+  }
+  startScreen.style.display = "flex";
+};
+
+const markStartScreenReady = (message: string) => {
+  startScreenReady = true;
+  startScreen.classList.add("start-screen--ready");
+  startScreenButton.disabled = false;
+  startScreenButton.textContent = "Start";
+  setStartScreenMessage(`${message} Click Start to enter.`);
+  if (startScreenFallbackTimer !== null) {
+    window.clearTimeout(startScreenFallbackTimer);
+    startScreenFallbackTimer = null;
+  }
+};
+
+const hideStartScreen = () => {
+  if (startScreen.classList.contains("start-screen--hidden")) return;
+  startScreen.classList.add("start-screen--hidden");
+  startScreenHideTimer = window.setTimeout(() => {
+    startScreen.style.display = "none";
+  }, 700);
+};
+
+const launchIntoApp = (message = "Launching experience...") => {
+  if (startScreenLaunchTimer !== null) return;
+  startScreen.classList.remove("start-screen--ready");
+  startScreen.classList.add("start-screen--launching");
+  startScreenButton.disabled = true;
+  startScreenButton.textContent = "Starting...";
+  setStartScreenMessage(message);
+  startScreenLaunchTimer = window.setTimeout(() => {
+    hideStartScreen();
+    startScreenLaunchTimer = null;
+  }, 3000);
+};
 
 const clampValue = (value: string | number | null): number => {
   if (typeof value === "number") return value;
@@ -55,6 +161,89 @@ const clampValue = (value: string | number | null): number => {
 
 const clampLatitude = (value: number) => Math.max(-90, Math.min(90, value));
 const clampLongitude = (value: number) => Math.max(-180, Math.min(180, value));
+const clampNumber = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+const focusInput = (input: HTMLInputElement) => {
+  window.requestAnimationFrame(() => {
+    input.focus();
+    input.select();
+  });
+};
+
+const isTypingTarget = (target: EventTarget | null) => {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName.toLowerCase();
+  return tag === "input" || tag === "textarea" || target.isContentEditable;
+};
+
+const getKeyboardPanStep = (zoom: number) => {
+  // Smaller steps when zoomed in, larger when zoomed out.
+  const base = 0.0025; // degrees at mid zoom
+  const factor = Math.pow(0.6, Math.max(0, zoom - 12));
+  return base * factor;
+};
+
+const clearPanLoop = () => {
+  if (panAnimationFrame !== null) {
+    window.cancelAnimationFrame(panAnimationFrame);
+    panAnimationFrame = null;
+  }
+  activePanKeys.clear();
+  lastPanFrameTs = null;
+};
+
+const tickPanLoop = (timestamp: number) => {
+  if (activePanKeys.size === 0) {
+    clearPanLoop();
+    return;
+  }
+  const lastTs = lastPanFrameTs ?? timestamp;
+  const dt = Math.min(32, timestamp - lastTs); // ms cap to avoid jumps
+  lastPanFrameTs = timestamp;
+
+  const step = getKeyboardPanStep(currentViewState.zoom);
+  const speedMultiplier = dt / 16.7; // normalize to ~60fps
+
+  const forward = (activePanKeys.has("up") ? 1 : 0) + (activePanKeys.has("down") ? -1 : 0);
+  const strafe = (activePanKeys.has("right") ? 1 : 0) + (activePanKeys.has("left") ? -1 : 0);
+
+  let latDelta = 0;
+  let lngDelta = 0;
+
+  if (forward !== 0 || strafe !== 0) {
+    const headingRad = (currentViewState.bearing * Math.PI) / 180;
+    const sinH = Math.sin(headingRad);
+    const cosH = Math.cos(headingRad);
+    // Rotate input vector by camera bearing so WASD/arrows follow the current view heading
+    const dirLat = forward * cosH + strafe * -sinH;
+    const dirLng = forward * sinH + strafe * cosH;
+    const cosLat = Math.max(0.2, Math.cos((currentViewState.latitude * Math.PI) / 180));
+    latDelta = dirLat * step;
+    lngDelta = (dirLng * step) / cosLat;
+  }
+
+  if (latDelta !== 0 || lngDelta !== 0) {
+    deckScene.setViewState({
+      latitude: clampLatitude(currentViewState.latitude + latDelta * speedMultiplier),
+      longitude: clampLongitude(currentViewState.longitude + lngDelta * speedMultiplier),
+    });
+  }
+
+  panAnimationFrame = window.requestAnimationFrame(tickPanLoop);
+};
+
+const startPanLoopIfNeeded = () => {
+  if (panAnimationFrame === null) {
+    panAnimationFrame = window.requestAnimationFrame(tickPanLoop);
+  }
+};
+
+const revokeLastScreenshot = () => {
+  if (lastScreenshotUrl) {
+    URL.revokeObjectURL(lastScreenshotUrl);
+    lastScreenshotUrl = null;
+  }
+  lastScreenshotBlob = null;
+};
 
 const exportGroupToGlbBlob = (group: Group): Promise<Blob> =>
   new Promise((resolve, reject) => {
@@ -85,8 +274,8 @@ const createScenegraphBlob = async (group: Group): Promise<Blob> => {
 
 const updateViewDistanceDisplay = (zoom: number) => {
   const clamped = clampZoom(zoom);
-  viewDistanceValue.textContent = clamped.toFixed(0);
-  const sliderValue = clamped.toString();
+  viewDistanceValue.textContent = clamped.toFixed(1);
+  const sliderValue = clamped.toFixed(1);
   if (viewDistanceSlider.value !== sliderValue) {
     viewDistanceSlider.value = sliderValue;
   }
@@ -111,6 +300,7 @@ const ensureDeckCanvas = (container: HTMLElement): HTMLCanvasElement => {
 const initialZoom = clampZoom(clampValue(viewDistanceSlider.value));
 viewDistanceSlider.min = VIEW_DISTANCE_RANGE.min.toString();
 viewDistanceSlider.max = VIEW_DISTANCE_RANGE.max.toString();
+viewDistanceSlider.step = "0.1";
 viewDistanceSlider.value = initialZoom.toString();
 updateViewDistanceDisplay(initialZoom);
 scaleSlider.min = SCALE_RANGE.min.toString();
@@ -127,6 +317,8 @@ const gltfExporter = new GLTFExporter();
 const modelState = createModelState();
 let activeMode: "translate" | "rotate" | "scale" = "translate";
 let isDraggingModel = false;
+let isPlacingModel = false;
+let elevationServicePromise: Promise<google.maps.ElevationService | null> | null = null;
 
 const hasActiveModel = () => Boolean(modelState.scenegraphSource);
 
@@ -143,11 +335,25 @@ const deckScene = new DeckScene({
       updateCoordinates(viewState.latitude, viewState.longitude);
       updateViewDistanceDisplay(viewState.zoom);
     },
-    onTilesetLoad: () => setStatus("Photorealistic 3D map ready. Load a model to continue."),
+    onTilesetLoad: () => {
+      setStatus("Photorealistic 3D map ready. Load a model to continue.");
+      markStartScreenReady("Photorealistic 3D map ready.");
+    },
     onTileLoad: (tile) => console.debug("Tile loaded", tile),
     onTileError: (error) => {
       console.error("Tile error:", error);
       setStatus("Failed to load Google photorealistic tiles. Verify API quota.");
+      if (!startScreenReady && !startScreen.classList.contains("start-screen--hidden")) {
+        startScreenReady = true;
+        startScreen.classList.add("start-screen--ready");
+        startScreenButton.disabled = false;
+        startScreenButton.textContent = "Enter anyway";
+        setStartScreenMessage("Tiles could not stream. Check the API quota, or continue to retry in-app.");
+        if (startScreenHideTimer !== null) {
+          window.clearTimeout(startScreenHideTimer);
+          startScreenHideTimer = null;
+        }
+      }
     },
     onMapClick: ({ latitude, longitude }) => {
       handleMapPlacement(latitude, longitude);
@@ -173,37 +379,124 @@ const deckScene = new DeckScene({
     },
   },
 });
+updateCaptureAvailability();
 
-const setStatus = (message: string) => {
+deckCanvas.addEventListener("pointerdown", (event) => {
+  if (event.ctrlKey) {
+    deckScene.setDragMode("rotate");
+    event.preventDefault();
+  } else if (event.button === 2) {
+    deckScene.setDragMode("rotate");
+    event.preventDefault();
+  } else if (event.button === 0) {
+    deckScene.setDragMode("pan");
+  }
+});
+
+["pointerup", "pointerleave", "pointercancel"].forEach((eventName) => {
+  deckCanvas.addEventListener(eventName, () => {
+    deckScene.resetDragMode();
+  });
+});
+
+deckCanvas.addEventListener("contextmenu", (event) => {
+  event.preventDefault();
+});
+
+const closeScreenshotModal = () => {
+  screenshotModal.classList.add("hidden");
+};
+
+const openScreenshotModal = () => {
+  screenshotModal.classList.remove("hidden");
+};
+
+function setStatus(message: string) {
   statusLabel.textContent = message;
-};
+  if (!startScreen.classList.contains("start-screen--hidden") && !startScreenReady) {
+    setStartScreenMessage(message);
+  }
+}
 
-const updateCoordinates = (lat: number, lng: number) => {
+function updateCoordinates(lat: number, lng: number) {
   coordsLabel.textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-};
+}
 
-const toggleModelControls = (visible: boolean) => {
+function updateCaptureAvailability() {
+  captureButton.disabled = false;
+}
+
+function toggleModelControls(visible: boolean) {
   modelControlsPanel.style.display = visible ? "block" : "none";
-};
+  updateCaptureAvailability();
+}
 
-const updateModelLayer = () => {
+function updateModelLayer() {
   deckScene.updateModel(hasActiveModel() ? modelState : null);
-};
+  updateCaptureAvailability();
+}
 
 const resetTransformControls = () => {
   scaleSlider.value = SCALE_RANGE.default.toString();
   scaleValue.textContent = `${SCALE_RANGE.default.toFixed(2)}x`;
+  scaleInput.value = SCALE_RANGE.default.toFixed(2);
   rotationSlider.value = "0";
   rotationValue.textContent = "0°";
+  rotationInput.value = "0";
   pitchSlider.value = "0";
   pitchValue.textContent = "0°";
+  pitchInput.value = "0";
+  rollSlider.value = "0";
+  rollValue.textContent = "0°";
+  rollInput.value = "0";
   altitudeSlider.value = "0";
   altitudeValue.textContent = formatAltitude(0);
+  altitudeInput.value = "0";
 };
 
 const syncAltitudeControls = () => {
   altitudeSlider.value = modelState.position.altitude.toFixed(0);
   altitudeValue.textContent = formatAltitude(modelState.position.altitude);
+  altitudeInput.value = modelState.position.altitude.toFixed(0);
+};
+
+type InlineEditConfig = {
+  container: HTMLDivElement;
+  display: HTMLElement;
+  input: HTMLInputElement;
+  onCommit: () => void;
+};
+
+const bindInlineNumberEdit = ({ container, display, input, onCommit }: InlineEditConfig) => {
+  const startEditing = () => {
+    if (!hasActiveModel()) {
+      setStatus("Load a model before editing.");
+      return;
+    }
+    container.classList.add("editing");
+    focusInput(input);
+  };
+
+  const commit = () => {
+    container.classList.remove("editing");
+    onCommit();
+  };
+
+  const cancel = () => {
+    container.classList.remove("editing");
+  };
+
+  display.addEventListener("click", startEditing);
+  input.addEventListener("blur", () => commit());
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      commit();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      cancel();
+    }
+  });
 };
 
 const syncPositionInputs = () => {
@@ -234,23 +527,60 @@ const commitPositionInputs = () => {
   setStatus("Model coordinates updated.");
 };
 
+const captureCanvasScreenshot = async (): Promise<Blob | null> => {
+  try {
+    const blob = await new Promise<Blob | null>((resolve, reject) => {
+      deckCanvas.toBlob(
+        (b) => (b ? resolve(b) : reject(new Error("Capture failed"))),
+        "image/png"
+      );
+    });
+    return blob;
+  } catch (error) {
+    console.error("Screenshot failed:", error);
+    setStatus("Screenshot blocked (likely due to cross-origin tiles).");
+    return null;
+  }
+};
+
+const handleScreenshot = async () => {
+  const blob = await captureCanvasScreenshot();
+  if (!blob) return;
+  revokeLastScreenshot();
+  lastScreenshotBlob = blob;
+  lastScreenshotUrl = URL.createObjectURL(blob);
+  screenshotPreview.src = lastScreenshotUrl;
+
+  let copied = false;
+  if ("clipboard" in navigator && "write" in navigator.clipboard) {
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+      copied = true;
+      setStatus("Screenshot copied to clipboard.");
+    } catch (error) {
+      console.warn("Clipboard write failed:", error);
+      setStatus("Screenshot captured. Clipboard unavailable for images (browser policy).");
+    }
+  } else {
+    setStatus("Screenshot captured. Clipboard unavailable.");
+  }
+
+  screenshotMessage.textContent = copied
+    ? "Screenshot copied. What do you want to do next?"
+    : "Screenshot captured. Clipboard unavailable—choose next action.";
+  openScreenshotModal();
+};
+
 const setMode = (mode: typeof activeMode) => {
   activeMode = mode;
   modeButtons.forEach((btn) => btn.classList.toggle("active", btn.dataset.mode === mode));
   if (mode === "translate") {
     setStatus("Move mode: click on the map to reposition the model.");
   } else if (mode === "rotate") {
-    setStatus("Rotate mode: use the heading and pitch sliders.");
+    setStatus("Rotate mode: use heading, pitch, and roll controls.");
   } else {
     setStatus("Scale mode: drag the scale slider to resize the model.");
   }
-};
-
-let cameraMode: CameraMode = "orbit";
-const setCameraMode = (mode: CameraMode) => {
-  cameraMode = mode;
-  cameraModeButtons.forEach((btn) => btn.classList.toggle("active", btn.dataset.camera === mode));
-  deckScene.setCameraMode(mode);
 };
 
 let labelsVisible = true;
@@ -275,7 +605,22 @@ const updateProviderStatus = () => {
 };
 
 const getElevationService = (): Promise<google.maps.ElevationService | null> | null => {
-  return null;
+  if (!elevationApiKey) return null;
+  if (elevationServicePromise) return elevationServicePromise;
+  setGoogleOptions({
+    key: elevationApiKey,
+    v: "weekly",
+  });
+  elevationServicePromise = loadGoogleLibrary("elevation")
+    .then((lib) => {
+      if (!lib?.ElevationService) return null;
+      return new lib.ElevationService();
+    })
+    .catch((error) => {
+      console.error("Failed to init ElevationService:", error);
+      return null;
+    });
+  return elevationServicePromise;
 };
 
 type SupportedModelFormat = "gltf" | "glb" | "obj";
@@ -304,15 +649,14 @@ const loadModelFromFile = async (file: File, format: SupportedModelFormat): Prom
 
 toggleModelControls(false);
 updateCoordinates(initialViewState.latitude, initialViewState.longitude);
-setCameraMode(cameraMode);
 setLabelsVisible(labelsVisible);
 updateProviderStatus();
 
 const fetchGroundAltitude = async (lat: number, lng: number): Promise<ElevationResult> => {
-  if (!googleMapsApiKey) {
+  if (!elevationApiKey) {
     return {
       altitude: null,
-      reason: "Google Maps API key missing or Elevation API not enabled",
+      reason: "Elevation API key missing or not enabled",
     };
   }
 
@@ -337,10 +681,10 @@ const fetchGroundAltitude = async (lat: number, lng: number): Promise<ElevationR
 
   try {
     const response = await fetch(
-      `https://maps.googleapis.com/maps/api/elevation/json?locations=${lat},${lng}&key=${googleMapsApiKey}`,
+      `https://maps.googleapis.com/maps/api/elevation/json?locations=${lat},${lng}&key=${elevationApiKey}`,
       {
         headers: {
-          "X-GOOG-API-KEY": googleMapsApiKey,
+          "X-GOOG-API-KEY": elevationApiKey,
         },
       }
     );
@@ -399,6 +743,13 @@ const handleMapPlacement = (latitude: number, longitude: number) => {
     setStatus("Load a model before placing it on the map.");
     return;
   }
+  if (isPlacingModel) {
+    isPlacingModel = false;
+    updateModelPosition(latitude, longitude);
+    setStatus("Model placed. Dropping to terrain...");
+    void dropModelToTerrain();
+    return;
+  }
   if (activeMode !== "translate") {
     setStatus("Switch to Move mode to reposition the model.");
     return;
@@ -415,11 +766,13 @@ const placeModel = async (model: Group, format: SupportedModelFormat) => {
   modelState.transform.scale = modelState.baseScale;
   modelState.transform.rotation = 0;
   modelState.transform.pitch = 0;
+  modelState.transform.roll = 0;
   modelState.position = {
     lat: currentViewState.latitude,
     lng: currentViewState.longitude,
     altitude: 0,
   };
+  isPlacingModel = true;
 
   const scenegraphBlob = await createScenegraphBlob(model);
   modelState.scenegraphSource = scenegraphBlob;
@@ -431,16 +784,26 @@ const placeModel = async (model: Group, format: SupportedModelFormat) => {
   setMode("translate");
 
   updateModelLayer();
-  setStatus(`${format.toUpperCase()} model loaded. Dropping to terrain...`);
-  void dropModelToTerrain();
+  setStatus(`${format.toUpperCase()} model loaded. Move cursor, click to place.`);
 };
 
 type Coordinates = { lat: number; lng: number };
 type SearchSuggestion = { label: string; detail: string; location: Coordinates };
+type GeocodeResult = { suggestions: SearchSuggestion[]; error?: string };
+type MapboxFeature = {
+  place_name?: string;
+  text?: string;
+  center?: [number, number];
+};
 
 const clearSearchResults = () => {
   searchResults.innerHTML = "";
   searchResults.classList.add("hidden");
+};
+
+const showSearchMessage = (message: string) => {
+  searchResults.innerHTML = `<div class="search-results-message">${message}</div>`;
+  searchResults.classList.remove("hidden");
 };
 
 const renderSearchResults = (items: SearchSuggestion[]) => {
@@ -474,30 +837,75 @@ const parseLatLngInput = (query: string): Coordinates | null => {
   return { lat, lng };
 };
 
-const geocodeAddress = async (query: string): Promise<SearchSuggestion[]> => {
-  if (!googleMapsApiKey) return [];
+const geocodeWithMapbox = async (query: string, token: string): Promise<GeocodeResult> => {
+  const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&limit=5&autocomplete=true`;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      const text = await response.text();
+      return { suggestions: [], error: `Mapbox geocoding failed (${response.status}). ${text}` };
+    }
+    const body: { features?: MapboxFeature[]; message?: string } = await response.json();
+    if (body.message) return { suggestions: [], error: `Mapbox geocoding error: ${body.message}` };
+    const features = body.features ?? [];
+    const suggestions = features.slice(0, 5).flatMap((f) => {
+      if (!f.center || f.center.length < 2) return [];
+      const [lng, lat] = f.center;
+      const label = f.place_name ?? f.text ?? "Unnamed";
+      return [
+        {
+          label,
+          detail: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+          location: { lat, lng },
+        },
+      ];
+    });
+    return { suggestions };
+  } catch (error) {
+    console.error("Mapbox geocoding fetch failed:", error);
+    return { suggestions: [], error: "Mapbox geocoding network error." };
+  }
+};
+
+const geocodeWithGoogle = async (query: string): Promise<GeocodeResult> => {
+  if (!googleMapsApiKey) return { suggestions: [], error: "Google Maps API key missing. Search unavailable." };
   try {
     const response = await fetch(
       `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${googleMapsApiKey}`
     );
     if (!response.ok) {
-      console.error("Geocoding API error:", response.statusText);
-      return [];
+      console.error("Geocoding API error:", response.status, response.statusText);
+      return {
+        suggestions: [],
+        error: `Geocoding failed (${response.status}). Check API key/billing/referrer settings.`,
+      };
     }
     const body: {
       results?: { formatted_address: string; geometry: { location: Coordinates } }[];
       status?: string;
+      error_message?: string;
     } = await response.json();
-    if (!body.results?.length || body.status === "ZERO_RESULTS") return [];
-    return body.results.slice(0, 5).map((r) => ({
-      label: r.formatted_address,
-      detail: `${r.geometry.location.lat.toFixed(5)}, ${r.geometry.location.lng.toFixed(5)}`,
-      location: r.geometry.location,
-    }));
+    if (body.status && body.status !== "OK") {
+      const detail = body.error_message ? `: ${body.error_message}` : "";
+      return { suggestions: [], error: `Geocoding returned ${body.status}${detail}` };
+    }
+    if (!body.results?.length) return { suggestions: [] };
+    return {
+      suggestions: body.results.slice(0, 5).map((r) => ({
+        label: r.formatted_address,
+        detail: `${r.geometry.location.lat.toFixed(5)}, ${r.geometry.location.lng.toFixed(5)}`,
+        location: r.geometry.location,
+      })),
+    };
   } catch (error) {
     console.error("Geocoding fetch failed:", error);
-    return [];
+    return { suggestions: [], error: "Geocoding network error. Check connectivity or CORS." };
   }
+};
+
+const geocodeAddress = (query: string): Promise<GeocodeResult> => {
+  if (mapboxAccessToken) return geocodeWithMapbox(query, mapboxAccessToken);
+  return geocodeWithGoogle(query);
 };
 
 let searchDebounce: number | null = null;
@@ -520,15 +928,24 @@ const handleSearch = async () => {
     return;
   }
 
-  if (!googleMapsApiKey) {
-    setStatus("Google Maps API key missing. Search unavailable.");
+  if (!mapboxAccessToken && !googleMapsApiKey) {
+    setStatus("No geocoding provider configured. Add Mapbox or Google API key.");
+    showSearchMessage("No geocoder available. Set VITE_MAPBOX_ACCESS_TOKEN or VITE_GOOGLE_MAPS_API_KEY.");
     return;
   }
-  setStatus("Searching for location...");
-  const suggestions = await geocodeAddress(query);
+
+  const providerLabel = mapboxAccessToken ? "Mapbox" : "Google";
+  setStatus(`Searching for location via ${providerLabel}...`);
+  const { suggestions, error } = await geocodeAddress(query);
+  if (error) {
+    setStatus(error);
+    showSearchMessage(error);
+    return;
+  }
   renderSearchResults(suggestions);
   if (!suggestions.length) {
     setStatus("Unable to locate that address. Try latitude,longitude or refine your search.");
+    showSearchMessage("No results. Try a more specific address or lat,lng.");
     return;
   }
   const first = suggestions[0];
@@ -556,12 +973,58 @@ const handleFileUpload = (file: File) => {
 
 const bootScene = () => {
   if (!googleMapsApiKey) {
-    setStatus("Missing VITE_GOOGLE_MAPS_API_KEY. Cannot stream photorealistic Google Earth data.");
+    showStartScreenLoading("Missing VITE_GOOGLE_MAPS_API_KEY. You can still enter to view the UI.");
+    startScreenButton.textContent = "Enter without map";
+    startScreenButton.disabled = false;
+    setStatus("Missing VITE_GOOGLE_MAPS_API_KEY. Photorealistic tiles will not load.");
+    startScreenReady = true;
     return;
   }
+  showStartScreenLoading("Loading Google photorealistic 3D tiles...");
   setStatus("Loading Google photorealistic 3D tiles...");
   deckScene.initializeLayers(googleMapsApiKey);
+  startScreenFallbackTimer = window.setTimeout(() => {
+    if (startScreenReady) return;
+    startScreenReady = true;
+    startScreenButton.disabled = false;
+    startScreenButton.textContent = "Enter anyway";
+    setStartScreenMessage("Still loading tiles. You can enter while data streams.");
+  }, 5000);
 };
+
+startScreenButton.addEventListener("click", () => {
+  if (!startScreenReady) return;
+  launchIntoApp();
+});
+
+window.addEventListener("keydown", (event) => {
+  if (isTypingTarget(event.target)) return;
+  const key = event.key.toLowerCase();
+  const direction = PAN_KEY_MAP[key];
+  if (!direction) return;
+  if (!activePanKeys.has(direction)) {
+    activePanKeys.add(direction);
+    startPanLoopIfNeeded();
+  }
+  event.preventDefault();
+  event.stopPropagation();
+});
+
+window.addEventListener("keyup", (event) => {
+  const key = event.key.toLowerCase();
+  const direction = PAN_KEY_MAP[key];
+  if (!direction) return;
+  activePanKeys.delete(direction);
+  if (activePanKeys.size === 0) {
+    clearPanLoop();
+  }
+  event.preventDefault();
+  event.stopPropagation();
+});
+
+window.addEventListener("blur", () => {
+  clearPanLoop();
+});
 
 viewDistanceSlider.addEventListener("input", () => {
   const zoomValue = clampZoom(Number(viewDistanceSlider.value));
@@ -578,6 +1041,21 @@ scaleSlider.addEventListener("input", () => {
   }
   modelState.transform.scale = modelState.baseScale * multiplier;
   scaleValue.textContent = `${multiplier.toFixed(2)}x`;
+  scaleInput.value = multiplier.toFixed(2);
+  updateModelLayer();
+});
+
+scaleInput.addEventListener("change", () => {
+  if (!hasActiveModel()) {
+    scaleInput.value = SCALE_RANGE.default.toFixed(2);
+    return;
+  }
+  const raw = Number(scaleInput.value);
+  const multiplier = clampNumber(raw, SCALE_RANGE.min, SCALE_RANGE.max);
+  scaleInput.value = multiplier.toFixed(2);
+  scaleSlider.value = multiplier.toString();
+  modelState.transform.scale = modelState.baseScale * multiplier;
+  scaleValue.textContent = `${multiplier.toFixed(2)}x`;
   updateModelLayer();
 });
 
@@ -586,6 +1064,7 @@ rotationSlider.addEventListener("input", () => {
   const rotation = parseFloat(rotationSlider.value);
   modelState.transform.rotation = rotation;
   rotationValue.textContent = `${Math.round(rotation)}°`;
+  rotationInput.value = Math.round(rotation).toString();
   updateModelLayer();
 });
 
@@ -594,6 +1073,16 @@ pitchSlider.addEventListener("input", () => {
   const pitch = parseFloat(pitchSlider.value);
   modelState.transform.pitch = pitch;
   pitchValue.textContent = `${Math.round(pitch)}°`;
+  pitchInput.value = Math.round(pitch).toString();
+  updateModelLayer();
+});
+
+rollSlider.addEventListener("input", () => {
+  if (!hasActiveModel()) return;
+  const roll = parseFloat(rollSlider.value);
+  modelState.transform.roll = roll;
+  rollValue.textContent = `${Math.round(roll)}°`;
+  rollInput.value = Math.round(roll).toString();
   updateModelLayer();
 });
 
@@ -601,7 +1090,101 @@ altitudeSlider.addEventListener("input", () => {
   if (!hasActiveModel()) return;
   modelState.position.altitude = Number(altitudeSlider.value);
   altitudeValue.textContent = formatAltitude(modelState.position.altitude);
+  altitudeInput.value = modelState.position.altitude.toFixed(0);
   updateModelLayer();
+});
+
+rotationInput.addEventListener("change", () => {
+  if (!hasActiveModel()) {
+    rotationInput.value = "0";
+    return;
+  }
+  const raw = Number(rotationInput.value);
+  const rotation = clampNumber(Number.isFinite(raw) ? raw : 0, 0, 360);
+  rotationInput.value = Math.round(rotation).toString();
+  rotationSlider.value = rotation.toString();
+  modelState.transform.rotation = rotation;
+  rotationValue.textContent = `${Math.round(rotation)}°`;
+  updateModelLayer();
+});
+
+pitchInput.addEventListener("change", () => {
+  if (!hasActiveModel()) {
+    pitchInput.value = "0";
+    return;
+  }
+  const raw = Number(pitchInput.value);
+  const minPitch = Number(pitchSlider.min);
+  const maxPitch = Number(pitchSlider.max);
+  const pitch = clampNumber(Number.isFinite(raw) ? raw : 0, minPitch, maxPitch);
+  pitchInput.value = Math.round(pitch).toString();
+  pitchSlider.value = pitch.toString();
+  modelState.transform.pitch = pitch;
+  pitchValue.textContent = `${Math.round(pitch)}°`;
+  updateModelLayer();
+});
+
+rollInput.addEventListener("change", () => {
+  if (!hasActiveModel()) {
+    rollInput.value = "0";
+    return;
+  }
+  const raw = Number(rollInput.value);
+  const roll = clampNumber(Number.isFinite(raw) ? raw : 0, -180, 180);
+  rollInput.value = Math.round(roll).toString();
+  rollSlider.value = roll.toString();
+  modelState.transform.roll = roll;
+  rollValue.textContent = `${Math.round(roll)}°`;
+  updateModelLayer();
+});
+
+altitudeInput.addEventListener("change", () => {
+  if (!hasActiveModel()) {
+    altitudeInput.value = "0";
+    return;
+  }
+  const raw = Number(altitudeInput.value);
+  const altitude = clampNumber(Number.isFinite(raw) ? raw : 0, Number(altitudeSlider.min), Number(altitudeSlider.max));
+  altitudeInput.value = altitude.toFixed(0);
+  altitudeSlider.value = altitude.toString();
+  modelState.position.altitude = altitude;
+  altitudeValue.textContent = formatAltitude(modelState.position.altitude);
+  updateModelLayer();
+});
+
+bindInlineNumberEdit({
+  container: scaleValueContainer,
+  display: scaleValue,
+  input: scaleInput,
+  onCommit: () => scaleInput.dispatchEvent(new Event("change")),
+});
+
+bindInlineNumberEdit({
+  container: rotationValueContainer,
+  display: rotationValue,
+  input: rotationInput,
+  onCommit: () => rotationInput.dispatchEvent(new Event("change")),
+});
+
+bindInlineNumberEdit({
+  container: pitchValueContainer,
+  display: pitchValue,
+  input: pitchInput,
+  onCommit: () => pitchInput.dispatchEvent(new Event("change")),
+});
+
+bindInlineNumberEdit({
+  container: rollValueContainer,
+  display: rollValue,
+  input: rollInput,
+  onCommit: () => rollInput.dispatchEvent(new Event("change")),
+});
+
+bindInlineNumberEdit({
+  container: altitudeValueContainer,
+  display: altitudeValue,
+  input: altitudeInput,
+  onCommit: () => altitudeInput.dispatchEvent(new Event("change")),
 });
 
 positionLatInput.addEventListener("change", () => {
@@ -625,8 +1208,39 @@ dropToGroundButton.addEventListener("click", (event) => {
   void dropModelToTerrain();
 });
 
+captureButton.addEventListener("click", () => {
+  void handleScreenshot();
+});
+
+const openGeoPogoAi = () => {
+  window.open("https://geopogo.com/ai", "_blank", "noopener");
+};
+
+openAndCopyButton.addEventListener("click", () => {
+  openGeoPogoAi();
+  closeScreenshotModal();
+});
+
+downloadShotButton.addEventListener("click", () => {
+  if (!lastScreenshotBlob || !lastScreenshotUrl) {
+    setStatus("Capture a screenshot first.");
+    return;
+  }
+  const link = document.createElement("a");
+  link.href = lastScreenshotUrl;
+  link.download = "geopogo-screenshot.jpg";
+  link.click();
+  setStatus("Screenshot downloaded.");
+});
+
+[closeModalButton, dismissModalButton].forEach((btn) => {
+  btn.addEventListener("click", () => {
+    closeScreenshotModal();
+  });
+});
+
 const startModelDrag = async (event: PointerEvent) => {
-  if (!hasActiveModel() || activeMode !== "translate") return;
+  if (!hasActiveModel() || activeMode !== "translate" || isPlacingModel) return;
   const hit = await deckScene.pickModel({ x: event.clientX, y: event.clientY });
   if (!hit) return;
   isDraggingModel = true;
@@ -661,6 +1275,12 @@ deckCanvas.addEventListener("pointerdown", (event) => {
 });
 
 deckCanvas.addEventListener("pointermove", (event) => {
+  if (isPlacingModel && hasActiveModel()) {
+    const position = deckScene.unproject({ x: event.clientX, y: event.clientY });
+    if (position) {
+      updateModelPosition(position.latitude, position.longitude);
+    }
+  }
   continueModelDrag(event);
 });
 
@@ -670,6 +1290,28 @@ deckCanvas.addEventListener("pointerup", (event) => {
 
 deckCanvas.addEventListener("pointercancel", (event) => {
   endModelDrag(event);
+});
+
+deleteModelButton.addEventListener("click", (event) => {
+  event.preventDefault();
+  if (!hasActiveModel()) {
+    setStatus("No model to delete.");
+    return;
+  }
+  modelState.scenegraphSource = null;
+  modelState.baseScale = 1;
+  modelState.transform = { scale: 1, rotation: 0, pitch: 0, roll: 0 };
+  modelState.position = {
+    lat: currentViewState.latitude,
+    lng: currentViewState.longitude,
+    altitude: 0,
+  };
+  toggleModelControls(false);
+  resetTransformControls();
+  syncAltitudeControls();
+  syncPositionInputs();
+  updateModelLayer();
+  setStatus("Model deleted.");
 });
 
 centerToCameraButton.addEventListener("click", (event) => {
@@ -687,14 +1329,6 @@ modeButtons.forEach((btn) =>
     const mode = btn.dataset.mode as typeof activeMode | undefined;
     if (!mode) return;
     setMode(mode);
-  })
-);
-
-cameraModeButtons.forEach((btn) =>
-  btn.addEventListener("click", () => {
-    const mode = btn.dataset.camera as CameraMode | undefined;
-    if (!mode || mode === cameraMode) return;
-    setCameraMode(mode);
   })
 );
 

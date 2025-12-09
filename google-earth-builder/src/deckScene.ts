@@ -32,6 +32,9 @@ type ControllerConfig = {
   dragMode: "pan" | "rotate";
   inertia: number;
   keyboard: boolean;
+  scrollZoom: boolean | { smooth?: boolean; speed?: number };
+  touchZoom: boolean;
+  pitchRange: [number, number];
 };
 
 type DeckSceneCallbacks = {
@@ -89,6 +92,9 @@ export class DeckScene {
       dragMode: mode === "free" ? "rotate" : "pan",
       inertia: mode === "free" ? 0 : 400,
       keyboard: true,
+      scrollZoom: { smooth: true },
+      touchZoom: true,
+      pitchRange: [-180, 180],
     };
   }
 
@@ -121,6 +127,16 @@ export class DeckScene {
     if (mode === this.cameraMode) return;
     this.cameraMode = mode;
     this.controllerConfig = this.createControllerConfig(mode);
+    this.deck?.setProps({ controller: this.controllerConfig });
+  }
+
+  setDragMode(mode: ControllerConfig["dragMode"]) {
+    this.controllerConfig = { ...this.controllerConfig, dragMode: mode };
+    this.deck?.setProps({ controller: this.controllerConfig });
+  }
+
+  resetDragMode() {
+    this.controllerConfig = this.createControllerConfig(this.cameraMode);
     this.deck?.setProps({ controller: this.controllerConfig });
   }
 
@@ -214,7 +230,11 @@ export class DeckScene {
             modelState.position.lat,
             modelState.position.altitude,
           ],
-          orientation: [modelState.transform.pitch, 0, modelState.transform.rotation],
+          orientation: [
+            modelState.transform.pitch,
+            modelState.transform.roll ?? 0,
+            modelState.transform.rotation,
+          ],
         },
       ],
       sizeScale: modelState.transform.scale * MODEL_BASE_SIZE,

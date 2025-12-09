@@ -22,8 +22,11 @@ export const normalizeModel = (model: Group, targetSize: number = MODEL_BASE_SIZ
   const size = box.getSize(new Vector3());
   const maxAxis = Math.max(size.x, size.y, size.z) || 1;
   model.scale.setScalar(targetSize / maxAxis);
+  // Recompute bounds after scaling to anchor the pivot at the base (avoid floating).
+  box.setFromObject(model);
   const center = box.getCenter(new Vector3());
-  model.position.sub(center); // drop pivot to anchor
+  const min = box.min.clone();
+  model.position.add(new Vector3(-center.x, -min.y, -center.z));
 };
 
 /**

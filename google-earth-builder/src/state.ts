@@ -14,6 +14,7 @@ export interface ModelTransform {
   scale: number;
   rotation: number;
   pitch: number;
+  roll: number;
 }
 
 export interface ModelPosition {
@@ -45,7 +46,7 @@ export const createInitialViewState = (zoom: number): CameraViewState => ({
 export const createModelState = (): ModelState => ({
   scenegraphSource: null,
   baseScale: 1,
-  transform: { scale: 1, rotation: 0, pitch: 0 },
+  transform: { scale: 1, rotation: 0, pitch: 0, roll: 0 },
   position: {
     lat: DEFAULT_LOCATION.latitude,
     lng: DEFAULT_LOCATION.longitude,
