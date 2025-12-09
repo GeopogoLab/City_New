@@ -94,7 +94,7 @@ export class DeckScene {
       keyboard: true,
       scrollZoom: { smooth: true },
       touchZoom: true,
-      pitchRange: [-89.9, 179],
+      pitchRange: [-180, 180],
     };
   }
 

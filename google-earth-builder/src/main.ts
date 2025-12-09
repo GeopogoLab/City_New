@@ -1120,7 +1120,9 @@ pitchInput.addEventListener("change", () => {
     return;
   }
   const raw = Number(pitchInput.value);
-  const pitch = clampNumber(Number.isFinite(raw) ? raw : 0, -179, 179);
+  const minPitch = Number(pitchSlider.min);
+  const maxPitch = Number(pitchSlider.max);
+  const pitch = clampNumber(Number.isFinite(raw) ? raw : 0, minPitch, maxPitch);
   pitchInput.value = Math.round(pitch).toString();
   pitchSlider.value = pitch.toString();
   modelState.transform.pitch = pitch;
