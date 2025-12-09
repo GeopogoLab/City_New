@@ -198,12 +198,23 @@ const tickPanLoop = (timestamp: number) => {
   const step = getKeyboardPanStep(currentViewState.zoom);
   const speedMultiplier = dt / 16.7; // normalize to ~60fps
 
+  const forward = (activePanKeys.has("up") ? 1 : 0) + (activePanKeys.has("down") ? -1 : 0);
+  const strafe = (activePanKeys.has("right") ? 1 : 0) + (activePanKeys.has("left") ? -1 : 0);
+
   let latDelta = 0;
   let lngDelta = 0;
-  if (activePanKeys.has("up")) latDelta += step;
-  if (activePanKeys.has("down")) latDelta -= step;
-  if (activePanKeys.has("left")) lngDelta -= step;
-  if (activePanKeys.has("right")) lngDelta += step;
+
+  if (forward !== 0 || strafe !== 0) {
+    const headingRad = (currentViewState.bearing * Math.PI) / 180;
+    const sinH = Math.sin(headingRad);
+    const cosH = Math.cos(headingRad);
+    // Rotate input vector by camera bearing so WASD/arrows follow the current view heading
+    const dirLat = forward * cosH + strafe * -sinH;
+    const dirLng = forward * sinH + strafe * cosH;
+    const cosLat = Math.max(0.2, Math.cos((currentViewState.latitude * Math.PI) / 180));
+    latDelta = dirLat * step;
+    lngDelta = (dirLng * step) / cosLat;
+  }
 
   if (latDelta !== 0 || lngDelta !== 0) {
     deckScene.setViewState({
