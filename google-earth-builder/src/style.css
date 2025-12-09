@@ -145,7 +145,10 @@ body {
 }
 
 .start-screen__body--lower {
-  margin-top: 120px;
+  margin-top: 180px;
+  align-items: flex-start;
+  justify-content: flex-end;
+  text-align: left;
 }
 
 .start-screen__eyebrow {
