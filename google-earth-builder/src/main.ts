@@ -301,6 +301,7 @@ const gltfExporter = new GLTFExporter();
 const modelState = createModelState();
 let activeMode: "translate" | "rotate" | "scale" = "translate";
 let isDraggingModel = false;
+let isPlacingModel = false;
 let elevationServicePromise: Promise<google.maps.ElevationService | null> | null = null;
 
 const hasActiveModel = () => Boolean(modelState.scenegraphSource);
@@ -723,6 +724,13 @@ const handleMapPlacement = (latitude: number, longitude: number) => {
     setStatus("Load a model before placing it on the map.");
     return;
   }
+  if (isPlacingModel) {
+    isPlacingModel = false;
+    updateModelPosition(latitude, longitude);
+    setStatus("Model placed. Dropping to terrain...");
+    void dropModelToTerrain();
+    return;
+  }
   if (activeMode !== "translate") {
     setStatus("Switch to Move mode to reposition the model.");
     return;
@@ -744,6 +752,7 @@ const placeModel = async (model: Group, format: SupportedModelFormat) => {
     lng: currentViewState.longitude,
     altitude: 0,
   };
+  isPlacingModel = true;
 
   const scenegraphBlob = await createScenegraphBlob(model);
   modelState.scenegraphSource = scenegraphBlob;
@@ -755,8 +764,7 @@ const placeModel = async (model: Group, format: SupportedModelFormat) => {
   setMode("translate");
 
   updateModelLayer();
-  setStatus(`${format.toUpperCase()} model loaded. Dropping to terrain...`);
-  void dropModelToTerrain();
+  setStatus(`${format.toUpperCase()} model loaded. Move cursor, click to place.`);
 };
 
 type Coordinates = { lat: number; lng: number };
@@ -1180,7 +1188,7 @@ downloadShotButton.addEventListener("click", () => {
 });
 
 const startModelDrag = async (event: PointerEvent) => {
-  if (!hasActiveModel() || activeMode !== "translate") return;
+  if (!hasActiveModel() || activeMode !== "translate" || isPlacingModel) return;
   const hit = await deckScene.pickModel({ x: event.clientX, y: event.clientY });
   if (!hit) return;
   isDraggingModel = true;
@@ -1215,6 +1223,12 @@ deckCanvas.addEventListener("pointerdown", (event) => {
 });
 
 deckCanvas.addEventListener("pointermove", (event) => {
+  if (isPlacingModel && hasActiveModel()) {
+    const position = deckScene.unproject({ x: event.clientX, y: event.clientY });
+    if (position) {
+      updateModelPosition(position.latitude, position.longitude);
+    }
+  }
   continueModelDrag(event);
 });
 
