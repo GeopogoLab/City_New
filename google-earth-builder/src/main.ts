@@ -72,6 +72,7 @@ const modeButtons = document.querySelectorAll<HTMLButtonElement>("[data-mode]");
 const viewDistanceSlider = document.querySelector<HTMLInputElement>("#viewDistance")!;
 const viewDistanceValue = document.querySelector<HTMLSpanElement>("#viewDistanceValue")!;
 const dropToGroundButton = document.querySelector<HTMLButtonElement>("#dropToGround")!;
+const deleteModelButton = document.querySelector<HTMLButtonElement>("#deleteModel")!;
 const googleMapsApiKey = getGoogleMapsApiKey();
 const elevationApiKey = getElevationApiKey();
 const mapboxAccessToken = getMapboxAccessToken();
@@ -318,6 +319,7 @@ let activeMode: "translate" | "rotate" | "scale" = "translate";
 let isDraggingModel = false;
 let isPlacingModel = false;
 let elevationServicePromise: Promise<google.maps.ElevationService | null> | null = null;
+let isModelSelected = false;
 
 const hasActiveModel = () => Boolean(modelState.scenegraphSource);
 
@@ -433,6 +435,9 @@ function toggleModelControls(visible: boolean) {
 function updateModelLayer() {
   deckScene.updateModel(hasActiveModel() ? modelState : null);
   updateCaptureAvailability();
+  if (!hasActiveModel()) {
+    isModelSelected = false;
+  }
 }
 
 const resetTransformControls = () => {
@@ -744,6 +749,7 @@ const handleMapPlacement = (latitude: number, longitude: number) => {
   }
   if (isPlacingModel) {
     isPlacingModel = false;
+    isModelSelected = true;
     updateModelPosition(latitude, longitude);
     setStatus("Model placed. Dropping to terrain...");
     void dropModelToTerrain();
@@ -781,6 +787,7 @@ const placeModel = async (model: Group, format: SupportedModelFormat) => {
   syncAltitudeControls();
   syncPositionInputs();
   setMode("translate");
+  isModelSelected = true;
 
   updateModelLayer();
   setStatus(`${format.toUpperCase()} model loaded. Move cursor, click to place.`);
@@ -1239,7 +1246,11 @@ downloadShotButton.addEventListener("click", () => {
 const startModelDrag = async (event: PointerEvent) => {
   if (!hasActiveModel() || activeMode !== "translate" || isPlacingModel) return;
   const hit = await deckScene.pickModel({ x: event.clientX, y: event.clientY });
-  if (!hit) return;
+  if (!hit) {
+    isModelSelected = false;
+    return;
+  }
+  isModelSelected = true;
   isDraggingModel = true;
   deckCanvas.setPointerCapture(event.pointerId);
   updateModelPosition(hit.latitude, hit.longitude);
@@ -1287,6 +1298,29 @@ deckCanvas.addEventListener("pointerup", (event) => {
 
 deckCanvas.addEventListener("pointercancel", (event) => {
   endModelDrag(event);
+});
+
+deleteModelButton.addEventListener("click", (event) => {
+  event.preventDefault();
+  if (!hasActiveModel()) {
+    setStatus("No model to delete.");
+    return;
+  }
+  modelState.scenegraphSource = null;
+  modelState.baseScale = 1;
+  modelState.transform = { scale: 1, rotation: 0, pitch: 0, roll: 0 };
+  modelState.position = {
+    lat: currentViewState.latitude,
+    lng: currentViewState.longitude,
+    altitude: 0,
+  };
+  isModelSelected = false;
+  toggleModelControls(false);
+  resetTransformControls();
+  syncAltitudeControls();
+  syncPositionInputs();
+  updateModelLayer();
+  setStatus("Model deleted.");
 });
 
 centerToCameraButton.addEventListener("click", (event) => {
