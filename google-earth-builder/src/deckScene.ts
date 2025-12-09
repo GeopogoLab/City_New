@@ -34,6 +34,7 @@ type ControllerConfig = {
   keyboard: boolean;
   scrollZoom: boolean | { smooth?: boolean; speed?: number };
   touchZoom: boolean;
+  pitchRange: [number, number];
 };
 
 type DeckSceneCallbacks = {
@@ -93,6 +94,7 @@ export class DeckScene {
       keyboard: true,
       scrollZoom: { smooth: true },
       touchZoom: true,
+      pitchRange: [0, 89.5],
     };
   }
 
