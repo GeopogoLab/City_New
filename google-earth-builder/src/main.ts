@@ -661,7 +661,12 @@ const fetchGroundAltitude = async (lat: number, lng: number): Promise<ElevationR
 
   try {
     const response = await fetch(
-      `https://maps.googleapis.com/maps/api/elevation/json?locations=${lat},${lng}&key=${elevationApiKey}`
+      `https://maps.googleapis.com/maps/api/elevation/json?locations=${lat},${lng}&key=${elevationApiKey}`,
+      {
+        headers: {
+          "X-GOOG-API-KEY": elevationApiKey,
+        },
+      }
     );
     const body = (await response.json().catch(() => null)) as ElevationApiResponse | null;
     const parsed = extractElevationResult(body);
@@ -699,12 +704,8 @@ const dropModelToTerrain = async () => {
       modelState.position.lng
     );
     if (altitude === null) {
-      const fallback = 0;
-      const errorHint = reason ? `Elevation lookup failed (${reason}). Using ${fallback}m.` : "Elevation unavailable. Using 0m.";
-      modelState.position.altitude = fallback;
-      syncAltitudeControls();
-      updateModelLayer();
-      setStatus(errorHint);
+      const errorHint = reason ? `Elevation lookup failed (${reason}).` : "Unable to fetch elevation data.";
+      setStatus(`${errorHint} Adjust altitude manually.`);
       return;
     }
     modelState.position.altitude = altitude;
